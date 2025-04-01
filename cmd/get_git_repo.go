@@ -1,13 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"strings"
 
-	"github.com/fluxcd/flux2/v2/pkg/printers"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/yaml"
 
 	"github.com/omnicate/flx/loader"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
@@ -22,44 +19,16 @@ var getGitRepoCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		if err := repoLoader.Load(
+		seq := repoLoader.GitRepositories(
 			filesys.MakeFsOnDisk(),
 			rootArgs.fluxDir,
 			"flux-system",
-			func(_ *loader.Kustomization, gr *loader.GitRepository) bool {
-				if gr == nil {
-					return false
-				}
-				if getArgs.name != gr.Name {
-					return false
-				}
-				if getArgs.namespace != gr.Namespace {
-					return false
-				}
-				return true
-			},
-		); err != nil {
+		)
+		results, err := getResultsFromSeq(seq)
+		if err != nil {
 			return err
 		}
-		ks := filterResources(repoLoader.GitRepositories())
-		sortResources(ks)
-
-		if getArgs.format == "pretty" {
-			headers := gitRepoHeaders(getArgs.allNamespaces)
-			rows := gitRepoRows(getArgs.allNamespaces, ks)
-			return printers.TablePrinter(headers).Print(cmd.OutOrStdout(), rows)
-		}
-
-		if getArgs.format == "yaml" {
-			for _, r := range ks {
-				fmt.Println("---")
-				data, _ := yaml.Marshal(r)
-				fmt.Println(string(data))
-			}
-			return nil
-		}
-
-		return fmt.Errorf("invalid output format %q", getArgs.format)
+		return printResults(results, gitRepoHeaders, gitRepoRows)
 	},
 }
 
@@ -67,9 +36,9 @@ func init() {
 	getCmd.AddCommand(getGitRepoCmd)
 }
 
-func gitRepoHeaders(includeNamespace bool) []string {
+func gitRepoHeaders() []string {
 	var headers []string
-	if includeNamespace {
+	if getArgs.allNamespaces {
 		headers = append(headers, "Namespace")
 	}
 	return append(headers, []string{
@@ -77,25 +46,22 @@ func gitRepoHeaders(includeNamespace bool) []string {
 		"URL",
 		"Reference",
 		"Includes",
+		"Error",
 	}...)
 }
 
-func gitRepoRows(includeNamespace bool, ks []*loader.GitRepository) [][]string {
-	var rows [][]string
-	for _, ks := range ks {
-		var row []string
-		if includeNamespace {
-			row = append(row, ks.Namespace)
-		}
-		row = append(row, []string{
-			ks.Name,
-			ks.Spec.URL,
-			formatGitRepoReference(ks.Spec.Reference),
-			formatIncludes(ks.Spec.Include),
-		}...)
-		rows = append(rows, row)
+func gitRepoRows(gr *loader.GitRepository) []string {
+	var row []string
+	if getArgs.allNamespaces {
+		row = append(row, gr.Namespace)
 	}
-	return rows
+	return append(row, []string{
+		gr.Name,
+		gr.Spec.URL,
+		formatGitRepoReference(gr.Spec.Reference),
+		formatIncludes(gr.Spec.Include),
+		errOrEmpty(gr.Error),
+	}...)
 }
 
 func formatGitRepoReference(ref *sourcev1.GitRepositoryRef) string {

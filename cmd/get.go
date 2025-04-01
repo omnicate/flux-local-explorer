@@ -1,13 +1,16 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"sort"
 	"time"
 
+	"github.com/fluxcd/flux2/v2/pkg/printers"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/yaml"
 
 	"github.com/omnicate/flx/loader"
 )
@@ -82,26 +85,7 @@ func init() {
 	rootCmd.AddCommand(getCmd)
 }
 
-type namedResource interface {
-	GetName() string
-	GetNamespace() string
-}
-
-func filterResources[T namedResource](list []T) []T {
-	var filtered []T
-	for _, ks := range list {
-		if !getArgs.allNamespaces && getArgs.namespace != "" && getArgs.namespace != ks.GetNamespace() {
-			continue
-		}
-		if getArgs.name != "" && getArgs.name != ks.GetName() {
-			continue
-		}
-		filtered = append(filtered, ks)
-	}
-	return filtered
-}
-
-func sortResources[T namedResource](list []T) {
+func sortResources[T loader.NamedResource](list []T) {
 	sort.Slice(list, func(i, j int) bool {
 		{
 			a, b := list[i].GetNamespace(), list[j].GetNamespace()
@@ -117,4 +101,66 @@ func sortResources[T namedResource](list []T) {
 		}
 		return false
 	})
+}
+
+func getResultsFromSeq[T loader.NamedResource](
+	seq loader.ErrSeq[T],
+) ([]T, error) {
+	var results []T
+	if getArgs.namespace != "" && getArgs.name != "" {
+		ks, err := seq.Find(func(item T) bool {
+			ns, name := item.GetNamespace(), item.GetName()
+			return ns == getArgs.namespace && name == getArgs.name
+		})
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, ks)
+	} else {
+		ks, err := seq.Filter(func(item T) bool {
+			if getArgs.allNamespaces {
+				return true
+			}
+			return getArgs.namespace == item.GetNamespace()
+		}).Collect()
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, ks...)
+	}
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no resources")
+	}
+	sortResources(results)
+	return results, nil
+}
+
+func printResults[T loader.NamedResource](
+	results []T,
+	headerFunc func() []string,
+	rowFunc func(T) []string,
+) error {
+	switch getArgs.format {
+	case "pretty":
+		var rows [][]string
+		for _, item := range results {
+			rows = append(rows, rowFunc(item))
+		}
+		return printers.TablePrinter(headerFunc()).Print(os.Stdout, rows)
+	case "yaml":
+		for _, r := range results {
+			fmt.Println("---")
+			data, _ := yaml.Marshal(r)
+			fmt.Println(string(data))
+		}
+		return nil
+	}
+	return fmt.Errorf("unknown format: %s", getArgs.format)
+}
+
+func errOrEmpty(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }

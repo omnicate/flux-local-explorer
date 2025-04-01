@@ -4,9 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/yaml"
-
-	"github.com/fluxcd/flux2/v2/pkg/printers"
 
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
@@ -23,49 +20,17 @@ var getKustomizationCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		if err := repoLoader.Load(
+		seq := repoLoader.Kustomizations(
 			filesys.MakeFsOnDisk(),
 			rootArgs.fluxDir,
 			"flux-system",
-			func(ks *loader.Kustomization, _ *loader.GitRepository) bool {
-				if ks == nil {
-					return false
-				}
-				if getArgs.name != ks.Name {
-					return false
-				}
-				if getArgs.namespace != ks.Namespace {
-					return false
-				}
-				return true
-			},
-		); err != nil {
+		)
+		results, err := getResultsFromSeq(seq)
+		if err != nil {
 			return err
 		}
-
-		ks := filterResources(repoLoader.Kustomizations())
-		sortResources(ks)
-
-		if getArgs.format == "pretty" {
-			headers := kustomizationHeaders(getArgs.allNamespaces)
-			rows := kustomizationRows(getArgs.allNamespaces, ks)
-			return printers.TablePrinter(headers).Print(cmd.OutOrStdout(), rows)
-		}
-
-		if getArgs.format == "yaml" {
-			for _, r := range ks {
-				fmt.Println("---")
-				data, _ := yaml.Marshal(r)
-				fmt.Println(string(data))
-			}
-			return nil
-		}
-
 		if getArgs.format == "kustomize" {
-			if len(ks) == 0 {
-				return fmt.Errorf("no resources")
-			}
-			for _, re := range ks {
+			for _, re := range results {
 				for _, r := range re.Resources {
 					fmt.Println("---")
 					fmt.Println(r.MustYaml())
@@ -73,7 +38,7 @@ var getKustomizationCmd = &cobra.Command{
 			}
 			return nil
 		}
-		return fmt.Errorf("invalid output format %q", getArgs.format)
+		return printResults(results, kustomizationHeaders, kustomizationRows)
 	},
 }
 
@@ -81,9 +46,9 @@ func init() {
 	getCmd.AddCommand(getKustomizationCmd)
 }
 
-func kustomizationHeaders(includeNamespace bool) []string {
+func kustomizationHeaders() []string {
 	var headers []string
-	if includeNamespace {
+	if getArgs.allNamespaces {
 		headers = append(headers, "Namespace")
 	}
 	return append(headers, []string{
@@ -94,24 +59,17 @@ func kustomizationHeaders(includeNamespace bool) []string {
 	}...)
 }
 
-func kustomizationRows(includeNamespace bool, ks []*loader.Kustomization) [][]string {
-	var rows [][]string
-	for _, ks := range ks {
-		var row []string
-		if includeNamespace {
-			row = append(row, ks.Namespace)
-		}
-		row = append(row, []string{
-			ks.Name,
-			formatSource(ks),
-			fmt.Sprintf("%d", len(ks.Resources)),
-		}...)
-		if ks.Error != nil {
-			row = append(row, ks.Error.Error())
-		}
-		rows = append(rows, row)
+func kustomizationRows(ks *loader.Kustomization) []string {
+	var row []string
+	if getArgs.allNamespaces {
+		row = append(row, ks.Namespace)
 	}
-	return rows
+	return append(row, []string{
+		ks.Name,
+		formatSource(ks),
+		fmt.Sprintf("%d", len(ks.Resources)),
+		errOrEmpty(ks.Error),
+	}...)
 }
 
 func formatSource(ks *loader.Kustomization) string {
