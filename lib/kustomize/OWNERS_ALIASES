@@ -1,0 +1,38 @@
+# Keep *-owners and *-approvers lists in sync with *-admins and *-maintainers in
+# https://github.com/kubernetes/org/blob/main/config/kubernetes-sigs/sig-cli/teams.yaml
+aliases:
+  kustomize-owners:
+    - knverey
+    - koba1t
+  kustomize-approvers:
+    - knverey
+    - koba1t
+    - varshaprasad96
+  kustomize-reviewers:
+    - knverey
+    - koba1t
+    - stormqueen1990
+    - varshaprasad96
+    - ncapps
+
+  docs-approvers:
+    - ncapps
+  docs-reviewers:
+    - ncapps
+
+  commands-approvers: []
+  commands-reviewers:
+    - stormqueen1990
+
+  #  emeritus:
+  #    - liujingfang1
+  #    - Shell32-Natsu
+  #    - justinsb
+  #    - monopole
+  #    - pwittrock
+  #    - mengqiy
+  #    - mortent
+  #    - phanimarupaka
+  #    - natasha41575
+  #    - annasong20
+  #    - yuwenma
