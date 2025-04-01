@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"sigs.k8s.io/kustomize/kyaml/filesys"
@@ -10,9 +11,14 @@ import (
 )
 
 func Test_Loader(t *testing.T) {
+	var (
+		path = os.Getenv("FLX_DIR")
+	)
+	if path == "" {
+		t.Skip("missing env: FLX_DIR")
+	}
 	l := loader.NewLoader()
 	diskFS := filesys.MakeFsOnDisk()
-	path := "../../omnicate/kubeconf/dub.dev.wgtwo.com/flux/flux-system/"
 	if err := l.Load(diskFS, path, "flux-system", func(ks *loader.Kustomization, gr *loader.GitRepository) bool {
 		return false
 	}); err != nil {
