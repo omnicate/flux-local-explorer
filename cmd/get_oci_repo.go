@@ -1,12 +1,8 @@
 package cmd
 
 import (
-	"fmt"
-
-	"github.com/fluxcd/flux2/v2/pkg/printers"
 	sourcev1b2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/yaml"
 
 	"github.com/omnicate/flx/loader"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
@@ -21,35 +17,16 @@ var getOciRepoCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		if err := repoLoader.Load(
+		seq := repoLoader.OCIRepositories(
 			filesys.MakeFsOnDisk(),
 			rootArgs.fluxDir,
 			"flux-system",
-			func(_ *loader.Kustomization, gr *loader.GitRepository) bool {
-				return false
-			},
-		); err != nil {
+		)
+		results, err := getResultsFromSeq(seq)
+		if err != nil {
 			return err
 		}
-		ks := filterResources(repoLoader.OciRepositories())
-		sortResources(ks)
-
-		if getArgs.format == "pretty" {
-			headers := ociRepoHeaders(getArgs.allNamespaces)
-			rows := ociRepoRows(getArgs.allNamespaces, ks)
-			return printers.TablePrinter(headers).Print(cmd.OutOrStdout(), rows)
-		}
-
-		if getArgs.format == "yaml" {
-			for _, r := range ks {
-				fmt.Println("---")
-				data, _ := yaml.Marshal(r)
-				fmt.Println(string(data))
-			}
-			return nil
-		}
-
-		return fmt.Errorf("invalid output format %q", getArgs.format)
+		return printResults(results, ociRepoHeaders, ociRepoRows)
 	},
 }
 
@@ -57,33 +34,31 @@ func init() {
 	getCmd.AddCommand(getOciRepoCmd)
 }
 
-func ociRepoHeaders(includeNamespace bool) []string {
+func ociRepoHeaders() []string {
 	var headers []string
-	if includeNamespace {
+	if getArgs.allNamespaces {
 		headers = append(headers, "Namespace")
 	}
 	return append(headers, []string{
 		"Name",
 		"URL",
 		"Reference",
+		"Error",
 	}...)
 }
 
-func ociRepoRows(includeNamespace bool, ks []*loader.OCIRepository) [][]string {
-	var rows [][]string
-	for _, ks := range ks {
-		var row []string
-		if includeNamespace {
-			row = append(row, ks.Namespace)
-		}
-		row = append(row, []string{
-			ks.Name,
-			ks.Spec.URL,
-			formatOciReference(ks.Spec.Reference),
-		}...)
-		rows = append(rows, row)
+func ociRepoRows(or *loader.OCIRepository) []string {
+	var row []string
+	if getArgs.allNamespaces {
+		row = append(row, or.Namespace)
 	}
-	return rows
+	row = append(row, []string{
+		or.Name,
+		or.Spec.URL,
+		formatOciReference(or.Spec.Reference),
+		errOrEmpty(or.Error),
+	}...)
+	return row
 }
 
 func formatOciReference(ref *sourcev1b2.OCIRepositoryRef) string {
