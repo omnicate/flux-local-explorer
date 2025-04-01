@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -17,6 +18,7 @@ type RootFlags struct {
 	localPath   string
 	verbose     bool
 	logFormat   string
+	cacheDir    string
 }
 
 var rootArgs RootFlags
@@ -53,6 +55,20 @@ func init() {
 		"C",
 		"",
 		"git repository tracked by flux",
+	)
+
+	cacheDir := "./cache"
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		cacheDir = filepath.Join(homeDir, ".flx")
+	}
+
+	rootCmd.PersistentFlags().StringVarP(
+		&rootArgs.cacheDir,
+		"cache-dir",
+		"",
+		cacheDir,
+		"cache location",
 	)
 
 	rootCmd.PersistentFlags().BoolVarP(

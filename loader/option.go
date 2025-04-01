@@ -1,6 +1,8 @@
 package loader
 
 import (
+	"os"
+
 	"github.com/rs/zerolog"
 )
 
@@ -8,6 +10,9 @@ type Option func(*Loader)
 
 func WithRepoCachePath(path string) Option {
 	return func(l *Loader) {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			_ = os.MkdirAll(path, 0755)
+		}
 		l.repoCachePath = path
 	}
 }

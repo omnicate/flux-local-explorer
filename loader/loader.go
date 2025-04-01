@@ -121,6 +121,11 @@ func (l *Loader) Load(
 	namespace string,
 	shouldStop StopCondition,
 ) error {
+	l.logger.Debug().
+		Str("path", path).
+		Str("cache", l.repoCachePath).
+		Msg("loading resources")
+
 	start := time.Now()
 	defer func() {
 		l.logger.Debug().

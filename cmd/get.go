@@ -50,6 +50,7 @@ var getCmd = &cobra.Command{
 				Branch: "master",
 			}),
 			loader.WithLogger(logger),
+			loader.WithRepoCachePath(rootArgs.cacheDir),
 		}
 		repoLoader = loader.NewLoader(opts...)
 		return nil
