@@ -20,6 +20,9 @@ out specific references (commits, branches, tags), runs `kustomize` and performs
 ## Installation
 
 ```shell
-$ go install github.com/omnicate/flx@latest
+$ git clone https://github.com/omnicate/flx
+$ cd flx
+$ go install .
+$ rm -rf flx
 ```
 
