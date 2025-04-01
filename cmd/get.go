@@ -2,13 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"sort"
-	"time"
 
 	"github.com/fluxcd/flux2/v2/pkg/printers"
-	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 
@@ -31,33 +28,6 @@ var (
 var getCmd = &cobra.Command{
 	Use:   "get",
 	Short: "Retrieve resources",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-
-		level := zerolog.InfoLevel
-		if rootArgs.verbose {
-			level = zerolog.DebugLevel
-		}
-		output := io.Writer(zerolog.ConsoleWriter{
-			Out:        os.Stderr,
-			TimeFormat: time.RFC3339,
-		})
-		if rootArgs.logFormat == "json" {
-			output = os.Stderr
-		}
-		logger := zerolog.New(output).Level(level).With().Timestamp().Logger()
-
-		opts := []loader.Option{
-			loader.WithLocalRepoRef(&loader.LocalGitRepository{
-				Remote: rootArgs.localRemote,
-				Path:   rootArgs.localPath,
-				Branch: "master",
-			}),
-			loader.WithLogger(logger),
-			loader.WithRepoCachePath(rootArgs.cacheDir),
-		}
-		repoLoader = loader.NewLoader(opts...)
-		return nil
-	},
 }
 
 func init() {
