@@ -1,6 +1,7 @@
 module github.com/omnicate/flx
 
 go 1.23.2
+toolchain go1.24.1
 
 replace (
 	sigs.k8s.io/kustomize/api => ./lib/kustomize/api
@@ -82,7 +83,7 @@ require (
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/gonvenience/bunt v1.4.0 // indirect
