@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pathutil",
+    srcs = ["pathutil.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/pathutil",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "pathutil_test",
+    srcs = ["pathutil_test.go"],
+    embed = [":pathutil"],
+    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+)

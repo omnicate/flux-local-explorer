@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hasher",
+    srcs = ["hasher.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/hasher",
+    visibility = ["//visibility:public"],
+    deps = ["@io_k8s_sigs_kustomize_kyaml//yaml"],
+)
+
+go_test(
+    name = "hasher_test",
+    srcs = ["hasher_test.go"],
+    embed = [":hasher"],
+    deps = ["@io_k8s_sigs_kustomize_kyaml//yaml"],
+)

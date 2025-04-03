@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "k8scopy_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/k8scopy",
+    visibility = ["//visibility:private"],
+    deps = ["@io_k8s_sigs_kustomize_cmd_k8scopy//internal:go_default_library"],
+)
+
+go_binary(
+    name = "k8scopy",
+    embed = [":k8scopy_lib"],
+    visibility = ["//visibility:public"],
+)

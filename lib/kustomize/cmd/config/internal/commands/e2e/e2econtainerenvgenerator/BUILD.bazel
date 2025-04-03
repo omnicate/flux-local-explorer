@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "e2econtainerenvgenerator_lib",
+    srcs = [
+        "doc.go",
+        "main.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/config/internal/commands/e2e/e2econtainerenvgenerator",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework",
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework/command",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_binary(
+    name = "e2econtainerenvgenerator",
+    embed = [":e2econtainerenvgenerator_lib"],
+    visibility = ["//lib/kustomize/cmd/config:__subpackages__"],
+)

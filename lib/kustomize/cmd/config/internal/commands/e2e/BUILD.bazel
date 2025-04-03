@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "e2e_test",
+    srcs = [
+        "e2e_test.go",
+        "test_util_test.go",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//testutil",
+    ],
+)

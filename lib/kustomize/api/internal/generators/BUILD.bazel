@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "generators",
+    srcs = [
+        "configmap.go",
+        "secret.go",
+        "utils.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/internal/generators",
+    visibility = ["//lib/kustomize/api:__subpackages__"],
+    deps = [
+        "@com_github_go_errors_errors//:errors",
+        "@io_k8s_sigs_kustomize_api//ifc",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_test(
+    name = "generators_test",
+    srcs = [
+        "configmap_test.go",
+        "secret_test.go",
+        "utils_test.go",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_k8s_sigs_kustomize_api//internal/generators",
+        "@io_k8s_sigs_kustomize_api//kv",
+        "@io_k8s_sigs_kustomize_api//pkg/loader",
+        "@io_k8s_sigs_kustomize_api//testutils/valtest",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)

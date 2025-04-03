@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "filesys",
+    srcs = [
+        "confirmeddir.go",
+        "doc.go",
+        "file.go",
+        "fileinfo.go",
+        "fileondisk.go",
+        "filesystem.go",
+        "fsnode.go",
+        "fsondisk.go",
+        "fsondisk_unix.go",
+        "fsondisk_windows.go",
+        "util.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/filesys",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "filesys_test",
+    srcs = [
+        "confirmeddir_test.go",
+        "filesystem_test.go",
+        "fsnode_test.go",
+        "fsondisk_test.go",
+        "util_test.go",
+    ],
+    embed = [":filesys"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+    ],
+)

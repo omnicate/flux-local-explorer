@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "validation",
+    srcs = ["validation.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/yaml/internal/k8sgen/pkg/util/validation",
+    visibility = ["//lib/kustomize/kyaml/yaml:__subpackages__"],
+    deps = ["@io_k8s_sigs_kustomize_kyaml//yaml/internal/k8sgen/pkg/util/validation/field"],
+)

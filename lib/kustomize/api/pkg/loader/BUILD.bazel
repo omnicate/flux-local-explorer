@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "loader",
+    srcs = ["loader.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/pkg/loader",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//internal/loader",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)

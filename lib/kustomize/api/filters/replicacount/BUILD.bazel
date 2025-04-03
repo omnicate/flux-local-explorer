@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "replicacount",
+    srcs = [
+        "doc.go",
+        "replicacount.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/filters/replicacount",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//filters/fieldspec",
+        "@io_k8s_sigs_kustomize_api//filters/filtersutil",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_test(
+    name = "replicacount_test",
+    srcs = [
+        "example_test.go",
+        "replicacount_test.go",
+    ],
+    embed = [":replicacount"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_k8s_sigs_kustomize_api//testutils/filtertest",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)

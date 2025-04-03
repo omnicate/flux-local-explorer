@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "builtins",
+    srcs = ["builtins.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/builtins",
+    visibility = ["//visibility:public"],
+    deps = ["@io_k8s_sigs_kustomize_api//internal/builtins"],
+)

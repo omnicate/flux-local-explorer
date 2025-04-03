@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mod",
+    srcs = ["module.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/gorepomod/internal/mod",
+    visibility = ["//lib/kustomize/cmd/gorepomod:__subpackages__"],
+    deps = [
+        "@io_k8s_sigs_kustomize_cmd_gorepomod//internal/misc:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_gorepomod//internal/semver:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_gorepomod//internal/utils:go_default_library",
+        "@org_golang_x_mod//modfile",
+    ],
+)
+
+go_test(
+    name = "mod_test",
+    srcs = ["module_test.go"],
+)

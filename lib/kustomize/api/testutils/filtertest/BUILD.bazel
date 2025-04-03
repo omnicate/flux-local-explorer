@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "filtertest",
+    srcs = ["runfilter.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/testutils/filtertest",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)

@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "k8sgen",
+    srcs = ["doc.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/yaml/internal/k8sgen",
+    visibility = ["//lib/kustomize/kyaml/yaml:__subpackages__"],
+)

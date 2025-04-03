@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "merge2",
+    srcs = [
+        "merge2.go",
+        "smpdirective.go",
+        "smpdirective_string.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/yaml/merge2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_kyaml//openapi",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+        "@io_k8s_sigs_kustomize_kyaml//yaml/walk",
+    ],
+)
+
+go_test(
+    name = "merge2_test",
+    srcs = [
+        "element_test.go",
+        "list_test.go",
+        "map_test.go",
+        "merge2_old_test.go",
+        "merge2_test.go",
+        "scalar_test.go",
+        "smpdirective_test.go",
+    ],
+    embed = [":merge2"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//kio/filters",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+        "@io_k8s_sigs_kustomize_kyaml//yaml/merge2",
+    ],
+)

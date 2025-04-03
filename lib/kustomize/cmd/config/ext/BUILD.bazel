@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ext",
+    srcs = ["ext.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/config/ext",
+    visibility = ["//visibility:public"],
+)

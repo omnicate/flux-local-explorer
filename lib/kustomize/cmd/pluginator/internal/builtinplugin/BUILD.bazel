@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "builtinplugin",
+    srcs = [
+        "builtinplugin.go",
+        "plugintype_string.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/pluginator/internal/builtinplugin",
+    visibility = ["//lib/kustomize/cmd/pluginator:__subpackages__"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//konfig",
+        "@io_k8s_sigs_kustomize_api//provenance",
+    ],
+)

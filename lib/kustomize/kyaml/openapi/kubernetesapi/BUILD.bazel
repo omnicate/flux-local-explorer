@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kubernetesapi",
+    srcs = ["openapiinfo.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/openapi/kubernetesapi",
+    visibility = ["//visibility:public"],
+    deps = ["@io_k8s_sigs_kustomize_kyaml//openapi/kubernetesapi/v1_21_2"],
+)

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sliceutil",
+    srcs = ["slice.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/sliceutil",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "sliceutil_test",
+    srcs = ["sliceutil_test.go"],
+    embed = [":sliceutil"],
+    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+)

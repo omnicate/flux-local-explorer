@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "annotationstransformer_lib",
+    srcs = ["AnnotationsTransformer.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/plugin/builtin/annotationstransformer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//filters/annotations",
+        "@io_k8s_sigs_kustomize_api//resmap",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)
+
+go_test(
+    name = "annotationstransformer_test",
+    srcs = ["AnnotationsTransformer_test.go"],
+    deps = ["@io_k8s_sigs_kustomize_api//testutils/kusttest"],
+)

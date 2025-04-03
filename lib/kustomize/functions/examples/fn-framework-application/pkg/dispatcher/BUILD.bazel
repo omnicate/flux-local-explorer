@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dispatcher",
+    srcs = ["dispatcher.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/functions/examples/fn-framework-application/pkg/dispatcher",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_spf13_cobra//:cobra",
+        "@io_k8s_sigs_kustomize_functions_examples_fn_framework_application//pkg/exampleapp/v1alpha1:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework",
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework/command",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//kio/filters",
+    ],
+)

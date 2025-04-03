@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "iampolicygenerator",
+    srcs = [
+        "doc.go",
+        "iampolicygenerator.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/filters/iampolicygenerator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_test(
+    name = "iampolicygenerator_test",
+    srcs = [
+        "example_test.go",
+        "iampolicygenerator_test.go",
+    ],
+    embed = [":iampolicygenerator"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_k8s_sigs_kustomize_api//testutils/filtertest",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)

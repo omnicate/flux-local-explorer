@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "prefixtransformer_lib",
+    srcs = ["PrefixTransformer.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/plugin/builtin/prefixtransformer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//filters/prefix",
+        "@io_k8s_sigs_kustomize_api//resmap",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//resid",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_test(
+    name = "prefixtransformer_test",
+    srcs = ["PrefixTransformer_test.go"],
+    deps = ["@io_k8s_sigs_kustomize_api//testutils/kusttest"],
+)

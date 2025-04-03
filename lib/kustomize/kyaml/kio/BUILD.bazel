@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kio",
+    srcs = [
+        "byteio_reader.go",
+        "byteio_writer.go",
+        "doc.go",
+        "ignorefilesmatcher.go",
+        "kio.go",
+        "pkgio_reader.go",
+        "pkgio_writer.go",
+        "tree.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/kio",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_monochromegane_go_gitignore//:go-gitignore",
+        "@com_github_xlab_treeprint//:treeprint",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+        "@io_k8s_sigs_kustomize_kyaml//ext",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+        "@io_k8s_sigs_kustomize_kyaml//kio/kioutil",
+        "@io_k8s_sigs_kustomize_kyaml//sets",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_test(
+    name = "kio_test",
+    srcs = [
+        "byteio_reader_test.go",
+        "byteio_readwriter_test.go",
+        "byteio_writer_test.go",
+        "example_test.go",
+        "ignorefilesmatcher_test.go",
+        "kio_test.go",
+        "pkgio_reader_test.go",
+        "pkgio_writer_test.go",
+        "testing_test.go",
+        "tree_test.go",
+    ],
+    embed = [":kio"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//mock:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//kio/kioutil",
+        "@io_k8s_sigs_kustomize_kyaml//testutil",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "resmaptest",
+    srcs = ["rmbuilder.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/testutils/resmaptest",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//provider",
+        "@io_k8s_sigs_kustomize_api//resmap",
+        "@io_k8s_sigs_kustomize_api//resource",
+        "@io_k8s_sigs_kustomize_kyaml//resid",
+    ],
+)

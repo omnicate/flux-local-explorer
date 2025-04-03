@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "edit",
+    srcs = ["editor.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/gorepomod/internal/edit",
+    visibility = ["//lib/kustomize/cmd/gorepomod:__subpackages__"],
+    deps = [
+        "@io_k8s_sigs_kustomize_cmd_gorepomod//internal/misc:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_gorepomod//internal/semver:go_default_library",
+    ],
+)
+
+go_test(
+    name = "edit_test",
+    srcs = ["editor_test.go"],
+    embed = [":edit"],
+)

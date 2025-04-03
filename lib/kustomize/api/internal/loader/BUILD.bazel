@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "loader",
+    srcs = [
+        "errors.go",
+        "fileloader.go",
+        "loader.go",
+        "loadrestrictions.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/internal/loader",
+    visibility = ["//lib/kustomize/api:__subpackages__"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//ifc",
+        "@io_k8s_sigs_kustomize_api//internal/git",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)
+
+go_test(
+    name = "loader_test",
+    srcs = [
+        "fileloader_test.go",
+        "loadrestrictions_test.go",
+    ],
+    embed = [":loader"],
+    deps = [
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_k8s_sigs_kustomize_api//ifc",
+        "@io_k8s_sigs_kustomize_api//internal/git",
+        "@io_k8s_sigs_kustomize_api//konfig",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)

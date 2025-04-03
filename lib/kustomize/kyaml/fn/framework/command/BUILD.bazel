@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "command",
+    srcs = [
+        "command.go",
+        "doc.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/fn/framework/command",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_spf13_cobra//:cobra",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_test(
+    name = "command_test",
+    srcs = [
+        "command_test.go",
+        "example_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    deps = [
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework",
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework/command",
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework/frameworktestutil",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)

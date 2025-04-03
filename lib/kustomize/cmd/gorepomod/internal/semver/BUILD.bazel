@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "semver",
+    srcs = [
+        "semver.go",
+        "svbump.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/gorepomod/internal/semver",
+    visibility = ["//lib/kustomize/cmd/gorepomod:__subpackages__"],
+)
+
+go_test(
+    name = "semver_test",
+    srcs = ["semver_test.go"],
+    embed = [":semver"],
+)

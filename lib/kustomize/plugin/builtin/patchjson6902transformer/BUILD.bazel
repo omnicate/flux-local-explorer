@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "patchjson6902transformer_lib",
+    srcs = ["PatchJson6902Transformer.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/plugin/builtin/patchjson6902transformer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@in_gopkg_evanphx_json_patch_v4//:json-patch_v4",
+        "@io_k8s_sigs_kustomize_api//filters/patchjson6902",
+        "@io_k8s_sigs_kustomize_api//ifc",
+        "@io_k8s_sigs_kustomize_api//resmap",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+        "@io_k8s_sigs_kustomize_kyaml//kio/kioutil",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)
+
+go_test(
+    name = "patchjson6902transformer_test",
+    srcs = ["PatchJson6902Transformer_test.go"],
+    deps = ["@io_k8s_sigs_kustomize_api//testutils/kusttest"],
+)

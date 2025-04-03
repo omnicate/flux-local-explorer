@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "inpututil",
+    srcs = ["inpututil.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/config/internal/inpututil",
+    visibility = ["//lib/kustomize/cmd/config:__subpackages__"],
+    deps = ["@io_k8s_sigs_kustomize_kyaml//yaml"],
+)

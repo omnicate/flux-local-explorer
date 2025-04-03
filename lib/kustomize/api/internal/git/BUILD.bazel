@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "git",
+    srcs = [
+        "cloner.go",
+        "gitrunner.go",
+        "repospec.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/internal/git",
+    visibility = ["//lib/kustomize/api:__subpackages__"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//internal/utils",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)
+
+go_test(
+    name = "git_test",
+    srcs = ["repospec_test.go"],
+    embed = [":git"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+    ],
+)

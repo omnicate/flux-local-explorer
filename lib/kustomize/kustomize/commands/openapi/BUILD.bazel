@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "openapi",
+    srcs = ["openapi.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kustomize/commands/openapi",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_spf13_cobra//:cobra",
+        "@io_k8s_sigs_kustomize_kustomize_v5//commands/openapi/fetch:go_default_library",
+        "@io_k8s_sigs_kustomize_kustomize_v5//commands/openapi/info:go_default_library",
+    ],
+)

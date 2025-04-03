@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "builtinpluginconsts",
+    srcs = [
+        "commonannotations.go",
+        "commonlabels.go",
+        "defaultconfig.go",
+        "doc.go",
+        "images.go",
+        "metadatalabels.go",
+        "nameprefix.go",
+        "namereference.go",
+        "namespace.go",
+        "namesuffix.go",
+        "replicas.go",
+        "templatelabels.go",
+        "varreference.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/internal/konfig/builtinpluginconsts",
+    visibility = ["//lib/kustomize/api:__subpackages__"],
+)

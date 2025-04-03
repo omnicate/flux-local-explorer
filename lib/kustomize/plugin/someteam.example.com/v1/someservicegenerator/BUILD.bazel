@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "someservicegenerator_lib",
+    srcs = ["SomeServiceGenerator.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/plugin/someteam.example.com/v1/someservicegenerator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//resmap",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)
+
+go_test(
+    name = "someservicegenerator_test",
+    srcs = ["SomeServiceGenerator_test.go"],
+    deps = ["@io_k8s_sigs_kustomize_api//testutils/kusttest"],
+)

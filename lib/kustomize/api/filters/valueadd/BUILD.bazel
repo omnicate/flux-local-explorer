@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "valueadd",
+    srcs = ["valueadd.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/filters/valueadd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_test(
+    name = "valueadd_test",
+    srcs = ["valueadd_test.go"],
+    embed = [":valueadd"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_k8s_sigs_kustomize_api//testutils/filtertest",
+    ],
+)

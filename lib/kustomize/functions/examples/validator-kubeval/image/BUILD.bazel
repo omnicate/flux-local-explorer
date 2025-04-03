@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "image_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/functions/examples/validator-kubeval/image",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_instrumenta_kubeval//kubeval:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_binary(
+    name = "image",
+    embed = [":image_lib"],
+    visibility = ["//visibility:public"],
+)

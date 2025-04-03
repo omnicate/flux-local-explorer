@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "util",
+    srcs = [
+        "configmapSecretFlagsAndArgs.go",
+        "util.go",
+        "validate.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kustomize/commands/internal/util",
+    visibility = ["//lib/kustomize/kustomize/commands:__subpackages__"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//ifc",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)
+
+go_test(
+    name = "util_test",
+    srcs = [
+        "configmapSecretFlagsAndArgs_test.go",
+        "util_test.go",
+    ],
+    embed = [":util"],
+    deps = [
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_k8s_sigs_kustomize_api//ifc",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)

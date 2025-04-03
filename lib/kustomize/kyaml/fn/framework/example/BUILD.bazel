@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "example_lib",
+    srcs = [
+        "doc.go",
+        "main.go",
+    ],
+    embedsrcs = ["templates/service_account.template.yaml"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/fn/framework/example",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_spf13_cobra//:cobra",
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework",
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework/command",
+        "@io_k8s_sigs_kustomize_kyaml//fn/framework/parser",
+    ],
+)
+
+go_binary(
+    name = "example",
+    embed = [":example_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "example_test",
+    srcs = ["main_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":example_lib"],
+    deps = ["@io_k8s_sigs_kustomize_kyaml//fn/framework/frameworktestutil"],
+)

@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "filters",
+    srcs = [
+        "filters.go",
+        "fmtr.go",
+        "grep.go",
+        "local.go",
+        "merge.go",
+        "merge3.go",
+        "modify.go",
+        "stripcomments.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/kio/filters",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//kio/kioutil",
+        "@io_k8s_sigs_kustomize_kyaml//openapi",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+        "@io_k8s_sigs_kustomize_kyaml//yaml/merge2",
+        "@io_k8s_sigs_kustomize_kyaml//yaml/merge3",
+    ],
+)
+
+go_test(
+    name = "filters_test",
+    srcs = [
+        "filters_test.go",
+        "fmtr_test.go",
+        "grep_test.go",
+        "merge3_test.go",
+        "merge_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//copyutil",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//kio/filters",
+        "@io_k8s_sigs_kustomize_kyaml//kio/filters/testyaml",
+        "@io_k8s_sigs_kustomize_kyaml//testutil",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)

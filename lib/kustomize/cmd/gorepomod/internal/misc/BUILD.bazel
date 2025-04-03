@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "misc",
+    srcs = [
+        "interfaces.go",
+        "moduleshortname.go",
+        "taggedmodule.go",
+        "trackedrepo.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/gorepomod/internal/misc",
+    visibility = ["//lib/kustomize/cmd/gorepomod:__subpackages__"],
+    deps = ["@io_k8s_sigs_kustomize_cmd_gorepomod//internal/semver:go_default_library"],
+)
+
+go_test(
+    name = "misc_test",
+    srcs = ["moduleshortname_test.go"],
+    deps = ["@io_k8s_sigs_kustomize_cmd_gorepomod//internal/misc:go_default_library"],
+)

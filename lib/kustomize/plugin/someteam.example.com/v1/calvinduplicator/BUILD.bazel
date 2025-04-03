@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "calvinduplicator_lib",
+    srcs = ["CalvinDuplicator.go"],
+    importpath = "github.com/omnicate/flx/lib/kustomize/plugin/someteam.example.com/v1/calvinduplicator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//resmap",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)
+
+go_test(
+    name = "calvinduplicator_test",
+    srcs = ["CalvinDuplicator_test.go"],
+    deps = ["@io_k8s_sigs_kustomize_api//testutils/kusttest"],
+)

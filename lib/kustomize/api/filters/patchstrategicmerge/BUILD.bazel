@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "patchstrategicmerge",
+    srcs = [
+        "doc.go",
+        "patchstrategicmerge.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/filters/patchstrategicmerge",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+        "@io_k8s_sigs_kustomize_kyaml//yaml/merge2",
+    ],
+)
+
+go_test(
+    name = "patchstrategicmerge_test",
+    srcs = [
+        "example_test.go",
+        "patchstrategicmerge_test.go",
+    ],
+    embed = [":patchstrategicmerge"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_k8s_sigs_kustomize_api//testutils/filtertest",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)

@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "labels",
+    srcs = [
+        "doc.go",
+        "labels.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/filters/labels",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//filters/filtersutil",
+        "@io_k8s_sigs_kustomize_api//filters/fsslice",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_test(
+    name = "labels_test",
+    srcs = [
+        "example_test.go",
+        "labels_test.go",
+    ],
+    embed = [":labels"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_k8s_sigs_kustomize_api//internal/plugins/builtinconfig",
+        "@io_k8s_sigs_kustomize_api//testutils/filtertest",
+        "@io_k8s_sigs_kustomize_api//types",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//resid",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)

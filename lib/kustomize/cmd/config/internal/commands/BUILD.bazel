@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "commands",
+    srcs = [
+        "cat.go",
+        "count.go",
+        "grep.go",
+        "run-fns.go",
+        "tree.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/config/internal/commands",
+    visibility = ["//lib/kustomize/cmd/config:__subpackages__"],
+    deps = [
+        "@com_github_spf13_cobra//:cobra",
+        "@io_k8s_sigs_kustomize_cmd_config//ext:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_config//internal/commands/internal/k8sgen/pkg/api/resource:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_config//internal/generateddocs/commands:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_config//runner:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+        "@io_k8s_sigs_kustomize_kyaml//fn/runtime/runtimeutil",
+        "@io_k8s_sigs_kustomize_kyaml//kio",
+        "@io_k8s_sigs_kustomize_kyaml//kio/filters",
+        "@io_k8s_sigs_kustomize_kyaml//kio/kioutil",
+        "@io_k8s_sigs_kustomize_kyaml//runfn",
+        "@io_k8s_sigs_kustomize_kyaml//sets",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_test(
+    name = "commands_test",
+    srcs = [
+        "cat_test.go",
+        "count_test.go",
+        "grep_test.go",
+        "run_test.go",
+        "tree_test.go",
+    ],
+    embed = [":commands"],
+    deps = [
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_config//internal/commands:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//copyutil",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+        "@io_k8s_sigs_kustomize_kyaml//openapi",
+        "@io_k8s_sigs_kustomize_kyaml//runfn",
+    ],
+)

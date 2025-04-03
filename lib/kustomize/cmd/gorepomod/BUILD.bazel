@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "gorepomod_lib",
+    srcs = [
+        "main.go",
+        "usage.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/cmd/gorepomod",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@io_k8s_sigs_kustomize_cmd_gorepomod//internal/arguments:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_gorepomod//internal/git:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_gorepomod//internal/misc:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_gorepomod//internal/repo:go_default_library",
+        "@io_k8s_sigs_kustomize_cmd_gorepomod//internal/semver:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "gorepomod",
+    embed = [":gorepomod_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "gorepomod_test",
+    srcs = ["gorepomod_test.go"],
+    embed = [":gorepomod_lib"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+    ],
+)

@@ -1,0 +1,18 @@
+load("@gazelle//:def.bzl", "gazelle")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+gazelle(name = "gazelle")
+
+go_library(
+    name = "flx_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/omnicate/flx",
+    visibility = ["//visibility:private"],
+    deps = ["//cmd"],
+)
+
+go_binary(
+    name = "flx",
+    embed = [":flx_lib"],
+    visibility = ["//visibility:public"],
+)

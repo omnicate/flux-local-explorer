@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "yaml",
+    srcs = [
+        "alias.go",
+        "compatibility.go",
+        "const.go",
+        "datamap.go",
+        "doc.go",
+        "filters.go",
+        "fns.go",
+        "kfns.go",
+        "mapnode.go",
+        "match.go",
+        "order.go",
+        "rnode.go",
+        "types.go",
+        "util.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/kyaml/yaml",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_davecgh_go_spew//spew",
+        "@io_k8s_kube_openapi//pkg/validation/spec",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+        "@io_k8s_sigs_kustomize_kyaml//sets",
+        "@io_k8s_sigs_kustomize_kyaml//sliceutil",
+        "@io_k8s_sigs_kustomize_kyaml//utils",
+        "@io_k8s_sigs_kustomize_kyaml//yaml/internal/k8sgen/pkg/labels",
+        "@io_k8s_sigs_yaml//goyaml.v2:goyaml_v2",
+        "@io_k8s_sigs_yaml//goyaml.v3:goyaml_v3",
+    ],
+)
+
+go_test(
+    name = "yaml_test",
+    srcs = [
+        "compatibility_test.go",
+        "datamap_test.go",
+        "example_test.go",
+        "fns_test.go",
+        "kfns_test.go",
+        "mapnode_test.go",
+        "match_test.go",
+        "rnode_test.go",
+        "types_test.go",
+        "util_test.go",
+    ],
+    embed = [":yaml"],
+    deps = [
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+        "@io_k8s_sigs_kustomize_kyaml//openapi",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+        "@io_k8s_sigs_yaml//goyaml.v3:goyaml_v3",
+    ],
+)

@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "annotations.go",
+        "errtimeout.go",
+        "makeResIds.go",
+        "stringslice.go",
+        "timedcall.go",
+    ],
+    importpath = "github.com/omnicate/flx/lib/kustomize/api/internal/utils",
+    visibility = ["//lib/kustomize/api:__subpackages__"],
+    deps = [
+        "@io_k8s_sigs_kustomize_api//konfig",
+        "@io_k8s_sigs_kustomize_kyaml//errors",
+        "@io_k8s_sigs_kustomize_kyaml//resid",
+        "@io_k8s_sigs_kustomize_kyaml//yaml",
+    ],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = [
+        "stringslice_test.go",
+        "timedcall_test.go",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_k8s_sigs_kustomize_api//internal/utils",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)
