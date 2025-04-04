@@ -1,9 +1,0 @@
-load("@rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "filesys",
-    srcs = ["filesys.go"],
-    importpath = "github.com/omnicate/flx/lib/kustomize/api/filesys",
-    visibility = ["//visibility:public"],
-    deps = ["@io_k8s_sigs_kustomize_kyaml//filesys"],
-)

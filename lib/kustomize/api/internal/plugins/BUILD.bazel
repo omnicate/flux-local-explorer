@@ -1,8 +1,0 @@
-load("@rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "plugins",
-    srcs = ["doc.go"],
-    importpath = "github.com/omnicate/flx/lib/kustomize/api/internal/plugins",
-    visibility = ["//lib/kustomize/api:__subpackages__"],
-)
