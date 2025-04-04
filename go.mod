@@ -2,10 +2,10 @@ module github.com/omnicate/flx
 
 go 1.23.2
 
-replace (
-	sigs.k8s.io/kustomize/api => ./lib/kustomize/api
-	sigs.k8s.io/kustomize/kyaml => ./lib/kustomize/kyaml
-)
+// replace (
+// 	sigs.k8s.io/kustomize/api => ./lib/kustomize/api
+// 	sigs.k8s.io/kustomize/kyaml => ./lib/kustomize/kyaml
+// )
 
 require (
 	github.com/fluxcd/flux2/v2 v2.5.1
@@ -52,7 +52,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.11 // indirect
 	github.com/aws/smithy-go v1.22.2 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/carapace-sh/carapace-shlex v1.0.1 // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
@@ -92,6 +91,7 @@ require (
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/homeport/dyff v1.7.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

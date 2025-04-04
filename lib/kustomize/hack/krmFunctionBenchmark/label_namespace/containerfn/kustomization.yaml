@@ -1,5 +1,0 @@
-resources:
-- data1.yaml
-- data2.yaml
-transformers:
-- containerfn.yaml

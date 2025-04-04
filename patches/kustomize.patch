@@ -1,0 +1,137 @@
+diff --color=auto -ur gazelle++go_deps+io_k8s_sigs_kustomize_api-old/internal/target/kusttarget.go gazelle++go_deps+io_k8s_sigs_kustomize_api-new/internal/target/kusttarget.go
+--- gazelle++go_deps+io_k8s_sigs_kustomize_api-old/internal/target/kusttarget.go	2025-04-04 10:14:53
++++ gazelle++go_deps+io_k8s_sigs_kustomize_api-new/internal/target/kusttarget.go	2025-04-04 10:11:22
+@@ -6,7 +6,6 @@
+ import (
+ 	"encoding/json"
+ 	"fmt"
+-	"os"
+ 	"strings"
+ 
+ 	"sigs.k8s.io/kustomize/api/ifc"
+@@ -43,7 +42,8 @@
+ 	ldr ifc.Loader,
+ 	validator ifc.Validator,
+ 	rFactory *resmap.Factory,
+-	pLdr *loader.Loader) *KustTarget {
++	pLdr *loader.Loader,
++) *KustTarget {
+ 	return &KustTarget{
+ 		ldr:       ldr,
+ 		validator: validator,
+@@ -65,11 +65,11 @@
+ 	}
+ 
+ 	// show warning message when using deprecated fields.
+-	if warningMessages := k.CheckDeprecatedFields(); warningMessages != nil {
+-		for _, msg := range *warningMessages {
+-			fmt.Fprintf(os.Stderr, "%v\n", msg)
+-		}
+-	}
++	// if warningMessages := k.CheckDeprecatedFields(); warningMessages != nil {
++	// 	for _, msg := range *warningMessages {
++	// 		fmt.Fprintf(os.Stderr, "%v\n", msg)
++	// 	}
++	// }
+ 
+ 	k.FixKustomization()
+ 
+@@ -167,7 +167,8 @@
+ }
+ 
+ func (kt *KustTarget) addHashesToNames(
+-	ra *accumulator.ResAccumulator) error {
++	ra *accumulator.ResAccumulator,
++) error {
+ 	p := builtins.NewHashTransformerPlugin()
+ 	err := kt.configureBuiltinPlugin(p, nil, builtinhelpers.HashTransformer)
+ 	if err != nil {
+@@ -190,14 +191,16 @@
+ // accordingly. When a remote base is found, it updates `origin.repo`
+ // and `origin.ref` accordingly.
+ func (kt *KustTarget) AccumulateTarget() (
+-	ra *accumulator.ResAccumulator, err error) {
++	ra *accumulator.ResAccumulator, err error,
++) {
+ 	return kt.accumulateTarget(accumulator.MakeEmptyAccumulator())
+ }
+ 
+ // ra should be empty when this KustTarget is a Kustomization, or the ra of the parent if this KustTarget is a Component
+ // (or empty if the Component does not have a parent).
+ func (kt *KustTarget) accumulateTarget(ra *accumulator.ResAccumulator) (
+-	resRa *accumulator.ResAccumulator, err error) {
++	resRa *accumulator.ResAccumulator, err error,
++) {
+ 	ra, err = kt.accumulateResources(ra, kt.kustomization.Resources)
+ 	if err != nil {
+ 		return nil, errors.WrapPrefixf(err, "accumulating resources")
+@@ -264,7 +267,8 @@
+ }
+ 
+ func (kt *KustTarget) runGenerators(
+-	ra *accumulator.ResAccumulator) error {
++	ra *accumulator.ResAccumulator,
++) error {
+ 	var generators []*resmap.GeneratorWithProperties
+ 	gs, err := kt.configureBuiltinGenerators()
+ 	if err != nil {
+@@ -297,7 +301,8 @@
+ }
+ 
+ func (kt *KustTarget) configureExternalGenerators() (
+-	[]*resmap.GeneratorWithProperties, error) {
++	[]*resmap.GeneratorWithProperties, error,
++) {
+ 	ra := accumulator.MakeEmptyAccumulator()
+ 	var generatorPaths []string
+ 	for _, p := range kt.kustomization.Generators {
+@@ -415,7 +420,8 @@
+ // accumulateResources fills the given resourceAccumulator
+ // with resources read from the given list of paths.
+ func (kt *KustTarget) accumulateResources(
+-	ra *accumulator.ResAccumulator, paths []string) (*accumulator.ResAccumulator, error) {
++	ra *accumulator.ResAccumulator, paths []string,
++) (*accumulator.ResAccumulator, error) {
+ 	for _, path := range paths {
+ 		// try loading resource as file then as base (directory or git repository)
+ 		if errF := kt.accumulateFile(ra, path); errF != nil {
+@@ -460,7 +466,8 @@
+ // accumulateComponents fills the given resourceAccumulator
+ // with resources read from the given list of paths.
+ func (kt *KustTarget) accumulateComponents(
+-	ra *accumulator.ResAccumulator, paths []string) (*accumulator.ResAccumulator, error) {
++	ra *accumulator.ResAccumulator, paths []string,
++) (*accumulator.ResAccumulator, error) {
+ 	for _, path := range paths {
+ 		// Components always refer to directories
+ 		ldr, errL := kt.ldr.New(path)
+@@ -486,7 +493,8 @@
+ }
+ 
+ func (kt *KustTarget) accumulateDirectory(
+-	ra *accumulator.ResAccumulator, ldr ifc.Loader, isComponent bool) (*accumulator.ResAccumulator, error) {
++	ra *accumulator.ResAccumulator, ldr ifc.Loader, isComponent bool,
++) (*accumulator.ResAccumulator, error) {
+ 	defer ldr.Cleanup()
+ 	subKt := NewKustTarget(ldr, kt.validator, kt.rFactory, kt.pLdr)
+ 	err := subKt.Load()
+@@ -538,7 +546,8 @@
+ }
+ 
+ func (kt *KustTarget) accumulateFile(
+-	ra *accumulator.ResAccumulator, path string) error {
++	ra *accumulator.ResAccumulator, path string,
++) error {
+ 	resources, err := kt.rFactory.FromFile(kt.ldr, path)
+ 	if err != nil {
+ 		return errors.WrapPrefixf(err, "accumulating resources from '%s'", path)
+@@ -561,7 +570,8 @@
+ }
+ 
+ func (kt *KustTarget) configureBuiltinPlugin(
+-	p resmap.Configurable, c interface{}, bpt builtinhelpers.BuiltinPluginType) (err error) {
++	p resmap.Configurable, c interface{}, bpt builtinhelpers.BuiltinPluginType,
++) (err error) {
+ 	var y []byte
+ 	if c != nil {
+ 		y, err = yaml.Marshal(c)

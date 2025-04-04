@@ -1,4 +1,0 @@
-resources:
-- example-use.yaml
-transformers:
-- transformer.yaml

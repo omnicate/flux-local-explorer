@@ -1,8 +1,0 @@
-resources:
-- deployment.yaml
-- service.yaml
-configMapGenerator:
-- name: demo-configmap
-  # behavior: merge
-  files:
-    - application.properties
