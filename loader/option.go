@@ -41,3 +41,9 @@ func WithLocalRepoRef(lgr ...*LocalGitRepository) Option {
 		l.repoReplace = append(l.repoReplace, lgr...)
 	}
 }
+
+func WithGitForceHTTPS(forceHTTPS bool) Option {
+	return func(l *Loader) {
+		l.gitViaHTTPS = forceHTTPS
+	}
+}

@@ -54,6 +54,7 @@ type Loader struct {
 	repos         map[string]filesys.FileSystem
 	repoCachePath string
 	repoReplace   []*LocalGitRepository
+	gitViaHTTPS   bool
 }
 
 func NewLoader(opts ...Option) *Loader {

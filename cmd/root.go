@@ -26,6 +26,9 @@ type RootFlags struct {
 	localPath   string
 	localBranch string
 
+	// Git options
+	gitForceHTTPS bool
+
 	// Misc options:
 	verbose   bool
 	logFormat string
@@ -82,6 +85,7 @@ var rootCmd = &cobra.Command{
 			}),
 			loader.WithLogger(logger),
 			loader.WithRepoCachePath(rootArgs.cacheDir),
+			loader.WithGitForceHTTPS(rootArgs.gitForceHTTPS),
 		}
 		repoLoader = loader.NewLoader(opts...)
 		return nil
@@ -117,6 +121,14 @@ func init() {
 		"",
 		cacheDir,
 		"cache location",
+	)
+
+	rootCmd.PersistentFlags().BoolVarP(
+		&rootArgs.gitForceHTTPS,
+		"git-force-https",
+		"",
+		false,
+		"force git clone via https",
 	)
 
 	rootCmd.PersistentFlags().BoolVarP(
