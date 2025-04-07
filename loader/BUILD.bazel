@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "loader",
@@ -36,4 +36,12 @@ go_library(
         "@io_k8s_sigs_kustomize_kyaml//kio",
         "@io_k8s_sigs_yaml//:yaml",
     ],
+)
+
+go_test(
+    name = "loader_test",
+    srcs = [
+        "repository_test.go",
+    ],
+    embed = [":loader"],
 )

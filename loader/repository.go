@@ -160,7 +160,7 @@ func (l *Loader) handleGitRepository(
 	}, nil
 }
 
-// gitHttpsURL returns an URL that clones via https protocol.
+// gitHttpsURL returns a URL that clones via https protocol.
 func gitHttpsURL(repoURL string) (string, error) {
 	u, err := url.Parse(repoURL)
 	if err != nil {
@@ -177,12 +177,18 @@ func gitHttpsURL(repoURL string) (string, error) {
 		}
 		return u.String(), nil
 	default:
-		return "", fmt.Errorf("unsupported scheme %s", u.Scheme)
+		u.Scheme = "https"
+		return gitHttpsURL(u.String())
 	}
 }
 
-// gitSSHUrl returns an URL that will clone via SSH protocol.
+// gitSSHUrl returns a URL that will clone via SSH protocol.
 func gitSSHUrl(repoURL string) (string, error) {
+	// TODO: hack to parse relative git repos, e.g. ssh://git@github.com:a/b.
+	//  otherwise errors "first path segment in URL cannot contain colon".
+	//  Consider https://github.com/gitsight/go-vcsurl or some other parsing library.
+	repoURL = strings.Replace(repoURL, "github.com:", "github.com/", 1)
+
 	u, err := url.Parse(repoURL)
 	if err != nil {
 		return "", err
@@ -195,12 +201,14 @@ func gitSSHUrl(repoURL string) (string, error) {
 		if u.User == nil {
 			u.User = url.User("git")
 		}
+		// TODO: is it better to always return without .git ?
 		if !strings.HasSuffix(u.Path, ".git") {
 			u.Path = u.Path + ".git"
 		}
 		return u.String(), nil
 	default:
-		return "", fmt.Errorf("unsupported scheme %s", u.Scheme)
+		u.Scheme = "ssh"
+		return gitSSHUrl(u.String())
 	}
 }
 
