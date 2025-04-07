@@ -31,6 +31,11 @@ func Test_gitHttpsUrl(t *testing.T) {
 			input: "https://github.com/omnicate/kubeconf",
 			want:  "https://github.com/omnicate/kubeconf",
 		},
+		{
+			name:  "no scheme",
+			input: "github.com/omnicate/kubeconf.git",
+			want:  "https://github.com/omnicate/kubeconf.git",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -71,6 +76,16 @@ func Test_gitSSHUrl(t *testing.T) {
 		{
 			name:  "https",
 			input: "https://github.com/omnicate/kubeconf",
+			want:  "ssh://git@github.com/omnicate/kubeconf.git",
+		},
+		{
+			name:  "relative url",
+			input: "ssh://git@github.com:omnicate/kubeconf.git",
+			want:  "ssh://git@github.com/omnicate/kubeconf.git",
+		},
+		{
+			name:  "no scheme",
+			input: "git@github.com:omnicate/kubeconf.git",
 			want:  "ssh://git@github.com/omnicate/kubeconf.git",
 		},
 	}

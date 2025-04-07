@@ -31,6 +31,7 @@ func Git(repoPath, remoteURL, rev string) (FileSystem, error) {
 		cmd := exec.Command("git", "clone", remoteURL, repoPath)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
 			return nil, fmt.Errorf("git clone failed: %v", err)
 		}
@@ -44,6 +45,7 @@ func Git(repoPath, remoteURL, rev string) (FileSystem, error) {
 		cmd := exec.Command("git", "-C", repoPath, "pull")
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
 			return nil, fmt.Errorf("git pull failed: %v", err)
 		}
