@@ -26,3 +26,8 @@ $ go install .
 $ rm -rf flx
 ```
 
+## FAQ
+
+- FLX asks for github username and password?
+> By default flx clones via SSH. If you don't have git via SSH set up correctly, you can
+> force flx to use HTTPS via `--git-force-https` flag.

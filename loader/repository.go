@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,10 +60,22 @@ func (l *Loader) handleGitRepository(
 	if _, ok := l.repos[nn]; ok {
 		return nil, ErrSkip
 	}
+
+	var remoteURL string
+	var err error
+	if l.gitViaHTTPS {
+		remoteURL, err = gitHttpsURL(gr.Spec.URL)
+	} else {
+		remoteURL, err = gitSSHUrl(gr.Spec.URL)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("git url: %w", err)
+	}
+
 	logger.Debug().
-		Str("url", gr.Spec.URL).
+		Str("url", remoteURL).
 		Str("ref", gitRepoReference(gr)).
-		Msg("loaded git repository")
+		Msg("loading git repository")
 
 	ref := gr.Spec.Reference
 	if ref == nil {
@@ -73,12 +86,15 @@ func (l *Loader) handleGitRepository(
 	}
 
 	var repoFS fs.FileSystem
-	remoteURL := gitHttpsURL(gr.Spec.URL)
 	gitRef := gitRepoReference(gr)
 
 	var isLocal bool
 	for _, lgr := range l.repoReplace {
-		if gitHttpsURL(lgr.Remote) == remoteURL && lgr.Ref() == gitRef {
+		equals, err := gitURLEquals(lgr.Remote, remoteURL)
+		if err != nil {
+			return nil, fmt.Errorf("git url equals: %w", err)
+		}
+		if equals && lgr.Ref() == gitRef {
 			repoFS = fs.Prefix(
 				filesys.MakeFsOnDisk(),
 				lgr.Path,
@@ -144,15 +160,62 @@ func (l *Loader) handleGitRepository(
 	}, nil
 }
 
-func gitHttpsURL(u string) string {
-	if strings.HasPrefix(u, "https://") {
-		return u
+// gitHttpsURL returns an URL that clones via https protocol.
+func gitHttpsURL(repoURL string) (string, error) {
+	u, err := url.Parse(repoURL)
+	if err != nil {
+		return "", err
 	}
-	u = strings.TrimPrefix(u, "ssh://")
-	if idx := strings.Index(u, "@"); idx > -1 {
-		u = u[idx+1:]
+	switch u.Scheme {
+	case "https":
+		return u.String(), nil
+	case "ssh":
+		u.Scheme = "https"
+		u.User = nil
+		if strings.HasSuffix(u.Path, ".git") {
+			u.Path = strings.TrimSuffix(u.Path, ".git")
+		}
+		return u.String(), nil
+	default:
+		return "", fmt.Errorf("unsupported scheme %s", u.Scheme)
 	}
-	return "https://" + strings.TrimSuffix(u, ".git")
+}
+
+// gitSSHUrl returns an URL that will clone via SSH protocol.
+func gitSSHUrl(repoURL string) (string, error) {
+	u, err := url.Parse(repoURL)
+	if err != nil {
+		return "", err
+	}
+	switch u.Scheme {
+	case "https":
+		u.Scheme = "ssh"
+		return gitSSHUrl(u.String())
+	case "ssh":
+		if u.User == nil {
+			u.User = url.User("git")
+		}
+		if !strings.HasSuffix(u.Path, ".git") {
+			u.Path = u.Path + ".git"
+		}
+		return u.String(), nil
+	default:
+		return "", fmt.Errorf("unsupported scheme %s", u.Scheme)
+	}
+}
+
+// gitURLEquals returns true if two remotes have the same representation
+// when converted to SSH urls.
+func gitURLEquals(a, b string) (bool, error) {
+	au, err := gitSSHUrl(a)
+	if err != nil {
+		return false, err
+	}
+	bu, err := gitSSHUrl(b)
+	if err != nil {
+		return false, err
+	}
+	return au == bu, nil
 }
 
 func gitRepoReference(gr *sourcev1.GitRepository) string {
