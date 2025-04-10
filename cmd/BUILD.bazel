@@ -14,7 +14,8 @@ go_library(
     importpath = "github.com/omnicate/flx/cmd",
     visibility = ["//visibility:public"],
     deps = [
-        "//loader",
+        "//loader/controller",
+        "//loader/manager",
         "//resource",
         "@com_github_fluxcd_flux2_v2//pkg/printers",
         "@com_github_fluxcd_source_controller_api//v1:api",

@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/omnicate/flx/loader"
+	"github.com/omnicate/flx/loader/manager"
 )
 
 // diffKustomizationCmd compares two kustomizations
@@ -29,13 +29,13 @@ var diffKustomizationCmd = &cobra.Command{
 		eg.Go(func() error {
 			// Base work tree (doesn't use local repo reference, will use "master" or whatever
 			// is specified in flux):
-			baseOpts := []loader.Option{
-				loader.WithLogger(logger),
-				loader.WithRepoCachePath(rootArgs.cacheDir),
-				loader.WithGitForceHTTPS(rootArgs.gitForceHTTPS),
+			baseOpts := []manager.Option{
+				manager.WithLogger(logger),
+				manager.WithRepoCachePath(rootArgs.cacheDir),
+				manager.WithGitForceHTTPS(rootArgs.gitForceHTTPS),
 			}
 			logger.Info().Msg("Getting base")
-			baseLoader := loader.NewLoader(baseOpts...)
+			baseLoader := manager.NewLoader(baseOpts...)
 			baseSeq, err := baseLoader.Load(
 				filesys.MakeFsOnDisk(),
 				rootArgs.fluxDir,

@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "manager",
+    srcs = [
+        "loader.go",
+        "option.go",
+        "queue.go",
+    ],
+    importpath = "github.com/omnicate/flx/loader/manager",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//loader",
+        "//loader/controller",
+        "//resource",
+        "@com_github_fluxcd_kustomize_controller_api//v1:api",
+        "@com_github_fluxcd_pkg_kustomize//:kustomize",
+        "@com_github_fluxcd_source_controller_api//v1:api",
+        "@com_github_fluxcd_source_controller_api//v1beta2",
+        "@com_github_rs_zerolog//:zerolog",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//kubernetes/scheme",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_controller_runtime//pkg/client/fake",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)

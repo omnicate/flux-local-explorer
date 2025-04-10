@@ -1,4 +1,4 @@
-package loader
+package controller
 
 import (
 	"testing"

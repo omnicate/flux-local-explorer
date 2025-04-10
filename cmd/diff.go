@@ -76,10 +76,17 @@ func printDiff(base, now []*resource.Resource) error {
 		return err
 	}
 
+	if diffArgs.short {
+		reporter := dyff.BriefReport{
+			Report: report,
+		}
+		return reporter.WriteReport(os.Stdout)
+	}
+
 	reporter := dyff.HumanReport{
 		Report:                report,
 		MultilineContextLines: 2,
-		NoTableStyle:          true,
+		NoTableStyle:          false,
 		DoNotInspectCerts:     false,
 		OmitHeader:            true,
 		UseGoPatchPaths:       false,

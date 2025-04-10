@@ -1,4 +1,4 @@
-package loader
+package controller
 
 import (
 	"bytes"
@@ -12,23 +12,70 @@ import (
 
 	"github.com/fluxcd/pkg/chartutil"
 	"github.com/go-logr/zerologr"
+	"github.com/rs/zerolog"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	sigyaml "sigs.k8s.io/yaml"
 
+	"github.com/omnicate/flx/loader"
 	intres "github.com/omnicate/flx/resource"
 )
 
-func (l *Loader) handleHelmRepository(hr *intres.HelmRepository) (
-	*intres.HelmRepository,
-	error,
-) {
-	l.helmRepos = append(l.helmRepos, hr)
-	return hr, nil
+type Helm struct {
+	logger    zerolog.Logger
+	cs        client.Client
+	cachePath string
+	repos     []*intres.HelmRepository
 }
 
-func (l *Loader) renderHelmRelease(
+func NewHelm(logger zerolog.Logger, cs client.Client, cachePath string) *Helm {
+	return &Helm{logger: logger, cs: cs, cachePath: cachePath}
+}
+
+func (h *Helm) Get(kind, namespace, name string) (any, error) {
+	return nil, ErrNotFound
+}
+
+func (h *Helm) Handle(res *loader.ResultSet) (*loader.ResultSet, error) {
+
+	for _, hr := range res.HelmRepositories {
+		if err := h.handleRepository(hr); err != nil {
+			hr.Error = err
+			return nil, err
+		}
+	}
+
+	out := loader.EmptyResultSet()
+	for _, hr := range res.HelmReleases {
+		helmRes, err := h.handleRelease(hr)
+		if err != nil {
+			hr.Error = err
+			return nil, err
+		}
+		out.Merge(helmRes)
+	}
+
+	// Remove helm resources
+	for i := len(res.Resources) - 1; i >= 0; i-- {
+		switch res.Resources[i].GetKind() {
+		case "HelmRepository", "HelmRelease":
+			res.Resources = append(res.Resources[:i], res.Resources[i+1:]...)
+		}
+	}
+
+	return out, nil
+}
+
+func (h *Helm) handleRepository(
+	repo *intres.HelmRepository,
+) error {
+	h.repos = append(h.repos, repo)
+	return nil
+}
+
+func (h *Helm) handleRelease(
 	hr *intres.HelmRelease,
 ) (
-	*ResultSet,
+	*loader.ResultSet,
 	error,
 ) {
 	if hr.SourceRef.Kind != intres.HelmRepositoryKind {
@@ -39,7 +86,7 @@ func (l *Loader) renderHelmRelease(
 	}
 
 	var found *intres.HelmRepository
-	for _, repo := range l.helmRepos {
+	for _, repo := range h.repos {
 		if repo.Name == hr.SourceRef.Name &&
 			repo.Namespace == orDefault(hr.SourceRef.Namespace, hr.Namespace) {
 			found = repo
@@ -56,7 +103,7 @@ func (l *Loader) renderHelmRelease(
 
 	md5h := md5.Sum([]byte(found.URL + "@" + hr.Version))
 	hash := hex.EncodeToString(md5h[:])
-	cache := filepath.Join(l.repoCachePath, hr.Chart+"-"+hr.Version+"-"+hash)
+	cache := filepath.Join(h.cachePath, hr.Chart+"-"+hr.Version+"-"+hash)
 
 	// Run `helm pull` command.
 	if _, err := os.Stat(cache); os.IsNotExist(err) {
@@ -84,7 +131,7 @@ func (l *Loader) renderHelmRelease(
 		cmd.Stderr = os.Stderr
 		cmd.Stdout = os.Stderr
 
-		l.logger.Debug().
+		h.logger.Debug().
 			Str("path", cache).
 			Str("name", hr.Name).
 			Str("cmd", cmd.String()).
@@ -98,8 +145,8 @@ func (l *Loader) renderHelmRelease(
 
 	values, err := chartutil.ChartValuesFromReferences(
 		context.Background(),
-		zerologr.New(&l.logger),
-		l.cs,
+		zerologr.New(&h.logger),
+		h.cs,
 		hr.Namespace,
 		hr.Values,
 		hr.ValuesFrom...,
@@ -127,10 +174,12 @@ func (l *Loader) renderHelmRelease(
 	cmd := exec.Command(
 		"helm",
 		"template",
-		filepath.Join(cache, filepath.Base(hr.Chart)),
+		"-n", hr.Namespace,
+		"--name-template", hr.Name,
 		"-f", valuesFile,
+		filepath.Join(cache, filepath.Base(hr.Chart)),
 	)
-	l.logger.Debug().
+	h.logger.Debug().
 		Str("path", cache).
 		Str("name", hr.Name).
 		Str("cmd", cmd.String()).
@@ -144,10 +193,10 @@ func (l *Loader) renderHelmRelease(
 		return nil, fmt.Errorf("helm template: %w", err)
 	}
 
-	resources, err := l.loadBytes(out.Bytes())
+	resources, err := loader.LoadBytes(out.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("loading resources from helm: %w", err)
 	}
 
-	return l.buildResultSet(resources, hr.Namespace)
+	return loader.NewResultSet(resources, hr.Namespace)
 }

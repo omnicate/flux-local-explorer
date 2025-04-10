@@ -15,7 +15,8 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/omnicate/flx/loader"
+	"github.com/omnicate/flx/loader/controller"
+	"github.com/omnicate/flx/loader/manager"
 )
 
 type RootFlags struct {
@@ -77,17 +78,17 @@ var rootCmd = &cobra.Command{
 			Str("branch", rootArgs.localBranch).
 			Msg("using local git repository")
 
-		opts := []loader.Option{
-			loader.WithLocalRepoRef(&loader.LocalGitRepository{
+		opts := []manager.Option{
+			manager.WithLocalRepoRef(&controller.GitLocalReplace{
 				Remote: rootArgs.localRemote,
 				Path:   rootArgs.localPath,
 				Branch: rootArgs.localBranch,
 			}),
-			loader.WithLogger(logger),
-			loader.WithRepoCachePath(rootArgs.cacheDir),
-			loader.WithGitForceHTTPS(rootArgs.gitForceHTTPS),
+			manager.WithLogger(logger),
+			manager.WithRepoCachePath(rootArgs.cacheDir),
+			manager.WithGitForceHTTPS(rootArgs.gitForceHTTPS),
 		}
-		repoLoader = loader.NewLoader(opts...)
+		repoLoader = manager.NewLoader(opts...)
 		return nil
 	},
 }

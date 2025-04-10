@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 
-	"github.com/omnicate/flx/loader"
+	"github.com/omnicate/flx/loader/manager"
 )
 
 type GetFlags struct {
@@ -20,7 +20,7 @@ type GetFlags struct {
 }
 
 var (
-	repoLoader *loader.Loader
+	repoLoader *manager.Loader
 	getArgs    GetFlags
 )
 
@@ -55,7 +55,7 @@ func init() {
 	rootCmd.AddCommand(getCmd)
 }
 
-func sortResources[T loader.NamedResource](list []T) {
+func sortResources[T manager.NamedResource](list []T) {
 	sort.Slice(list, func(i, j int) bool {
 		{
 			a, b := list[i].GetNamespace(), list[j].GetNamespace()
@@ -73,7 +73,7 @@ func sortResources[T loader.NamedResource](list []T) {
 	})
 }
 
-func getResultsFromSeq[T loader.NamedResource](
+func getResultsFromSeq[T manager.NamedResource](
 	resources []T,
 ) ([]T, error) {
 	var results []T
@@ -98,7 +98,7 @@ func getResultsFromSeq[T loader.NamedResource](
 	return results, nil
 }
 
-func printResults[T loader.NamedResource](
+func printResults[T manager.NamedResource](
 	results []T,
 	headerFunc func() []string,
 	rowFunc func(T) []string,

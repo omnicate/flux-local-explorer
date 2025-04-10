@@ -1,9 +1,11 @@
-package loader
+package manager
 
 import (
 	"os"
 
 	"github.com/rs/zerolog"
+
+	"github.com/omnicate/flx/loader/controller"
 )
 
 type Option func(*Loader)
@@ -23,20 +25,7 @@ func WithLogger(logger zerolog.Logger) Option {
 	}
 }
 
-type LocalGitRepository struct {
-	Remote string
-	Path   string
-
-	Commit string
-	Branch string
-	Tag    string
-}
-
-func (l *LocalGitRepository) Ref() string {
-	return orDefault(orDefault(l.Commit, l.Branch), l.Tag)
-}
-
-func WithLocalRepoRef(lgr ...*LocalGitRepository) Option {
+func WithLocalRepoRef(lgr ...*controller.GitLocalReplace) Option {
 	return func(l *Loader) {
 		l.repoReplace = append(l.repoReplace, lgr...)
 	}

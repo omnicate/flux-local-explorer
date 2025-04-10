@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "controller",
+    srcs = [
+        "controller.go",
+        "external_secret.go",
+        "git.go",
+        "helm.go",
+        "oci.go",
+    ],
+    importpath = "github.com/omnicate/flx/loader/controller",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//fs",
+        "//loader",
+        "//resource",
+        "@com_github_external_secrets_external_secrets//apis/externalsecrets/v1beta1",
+        "@com_github_fluxcd_pkg_chartutil//:chartutil",
+        "@com_github_fluxcd_pkg_oci//client",
+        "@com_github_fluxcd_source_controller_api//v1beta2",
+        "@com_github_go_logr_zerologr//:zerologr",
+        "@com_github_google_go_containerregistry//pkg/crane",
+        "@com_github_rs_zerolog//:zerolog",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_kustomize_api//resource",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)
+
+go_test(
+    name = "controller_test",
+    srcs = ["git_test.go"],
+    embed = [":controller"],
+)

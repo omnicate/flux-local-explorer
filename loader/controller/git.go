@@ -1,62 +1,79 @@
-package loader
+package controller
 
 import (
-	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
-	ociclient "github.com/fluxcd/pkg/oci/client"
-	sourcev1b2 "github.com/fluxcd/source-controller/api/v1beta2"
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/rs/zerolog"
-
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/omnicate/flx/fs"
+	"github.com/omnicate/flx/loader"
 	intres "github.com/omnicate/flx/resource"
 )
 
-func (l *Loader) handleOCIRepository(or *intres.OCIRepository) (*intres.OCIRepository, error) {
-	nn := "OCIRepository/" + namespacedName(or)
-	if _, ok := l.repos[nn]; ok {
-		return nil, ErrSkip
-	}
-	ociRef := ociRepoReference(or)
-	if ociRef == "" {
-		return nil, fmt.Errorf("OCIRepository reference is missing")
-	}
-	if !strings.HasPrefix(or.Spec.URL, sourcev1b2.OCIRepositoryPrefix) {
-		return nil, fmt.Errorf("OCIRepository with invalid scheme")
-	}
+type GitLocalReplace struct {
+	Remote string
+	Path   string
 
-	url := strings.TrimPrefix(or.Spec.URL, sourcev1b2.OCIRepositoryPrefix)
-	md5h := md5.Sum([]byte(url + "@" + ociRef))
-	hash := hex.EncodeToString(md5h[:])
-	ociRepoPath := filepath.Join(l.repoCachePath, or.Namespace+"-"+or.Name+"-"+hash)
-	if _, err := os.Stat(ociRepoPath); os.IsNotExist(err) {
-		client := ociclient.NewClient([]crane.Option{})
-		_, err := client.Pull(context.Background(), url+":"+ociRef, ociRepoPath)
-		if err != nil {
-			return nil, fmt.Errorf("oci pull: %w", err)
-		}
-	}
-
-	l.repos[nn] = fs.KrustyFileSystem(fs.Prefix(filesys.MakeFsOnDisk(), ociRepoPath))
-	return or, nil
+	Commit string
+	Branch string
+	Tag    string
 }
 
-func (l *Loader) handleGitRepository(
+func (l *GitLocalReplace) Ref() string {
+	return orDefault(orDefault(l.Commit, l.Branch), l.Tag)
+}
+
+type Git struct {
+	logger      zerolog.Logger
+	cachePath   string
+	repos       map[string]filesys.FileSystem
+	repoReplace []*GitLocalReplace
+	gitViaHTTPS bool
+}
+
+func NewGit(logger zerolog.Logger, cachePath string, repoReplace []*GitLocalReplace, gitViaHTTPS bool) *Git {
+	return &Git{logger: logger, cachePath: cachePath, repos: map[string]filesys.FileSystem{}, repoReplace: repoReplace, gitViaHTTPS: gitViaHTTPS}
+}
+
+func (l *Git) Get(kind, namespace, name string) (any, error) {
+	if kind == "GitRepository" {
+		fileSys, ok := l.repos[namespace+"/"+name]
+		if !ok {
+			return nil, ErrNotFound
+		}
+		return fileSys, nil
+	}
+	return nil, ErrNotFound
+}
+
+func (l *Git) Handle(rs *loader.ResultSet) (*loader.ResultSet, error) {
+	sort.Slice(rs.GitRepositories, func(i, j int) bool {
+		a, b := rs.GitRepositories[i], rs.GitRepositories[j]
+		return len(a.Spec.Include) < len(b.Spec.Include)
+	})
+	for _, r := range rs.GitRepositories {
+		if _, err := l.handleGitRepository(l.logger, r); err != nil {
+			r.Error = err
+			continue
+		}
+	}
+	return loader.EmptyResultSet(), nil
+}
+
+func (l *Git) handleGitRepository(
 	logger zerolog.Logger,
 	gr *intres.GitRepository,
 ) (*intres.GitRepository, error) {
-	nn := "GitRepository/" + namespacedName(gr)
+	nn := namespacedName(gr)
 	if _, ok := l.repos[nn]; ok {
-		return nil, ErrSkip
+		return nil, nil
 	}
 
 	var remoteURL string
@@ -111,7 +128,7 @@ func (l *Loader) handleGitRepository(
 		var gitRepoPath string
 		md5h := md5.Sum([]byte(remoteURL))
 		hash := hex.EncodeToString(md5h[:])
-		gitRepoPath = filepath.Join(l.repoCachePath, hash)
+		gitRepoPath = filepath.Join(l.cachePath, hash)
 		repoFS, err = fs.Git(
 			gitRepoPath,
 			remoteURL,
@@ -126,8 +143,7 @@ func (l *Loader) handleGitRepository(
 	mountPoints := make([]*fs.MountPoint, 0)
 	for _, include := range gr.Spec.Include {
 		repoName := fmt.Sprintf(
-			"%s/%s/%s",
-			"GitRepository",
+			"%s/%s",
 			gr.Namespace,
 			include.GitRepositoryRef.Name,
 		)
