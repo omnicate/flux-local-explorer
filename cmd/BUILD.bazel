@@ -3,6 +3,8 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "cmd",
     srcs = [
+        "diff.go",
+        "diff_kustomization.go",
         "get.go",
         "get_git_repo.go",
         "get_kustomization.go",
@@ -13,14 +15,19 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//loader",
+        "//resource",
         "@com_github_fluxcd_flux2_v2//pkg/printers",
         "@com_github_fluxcd_source_controller_api//v1:api",
         "@com_github_fluxcd_source_controller_api//v1beta2",
+        "@com_github_gonvenience_ytbx//:ytbx",
+        "@com_github_homeport_dyff//pkg/dyff",
         "@com_github_rs_zerolog//:zerolog",
         "@com_github_spf13_cobra//:cobra",
         "@com_github_spf13_pflag//:pflag",
         "@com_github_spf13_viper//:viper",
+        "@io_k8s_sigs_kustomize_api//resource",
         "@io_k8s_sigs_kustomize_kyaml//filesys",
         "@io_k8s_sigs_yaml//:yaml",
+        "@org_golang_x_sync//errgroup",
     ],
 )

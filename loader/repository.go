@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	ociclient "github.com/fluxcd/pkg/oci/client"
-	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	sourcev1b2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/rs/zerolog"
@@ -19,9 +18,10 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/omnicate/flx/fs"
+	intres "github.com/omnicate/flx/resource"
 )
 
-func (l *Loader) handleOCIRepository(or *sourcev1b2.OCIRepository) (*OCIRepository, error) {
+func (l *Loader) handleOCIRepository(or *intres.OCIRepository) (*intres.OCIRepository, error) {
 	nn := "OCIRepository/" + namespacedName(or)
 	if _, ok := l.repos[nn]; ok {
 		return nil, ErrSkip
@@ -47,15 +47,13 @@ func (l *Loader) handleOCIRepository(or *sourcev1b2.OCIRepository) (*OCIReposito
 	}
 
 	l.repos[nn] = fs.KrustyFileSystem(fs.Prefix(filesys.MakeFsOnDisk(), ociRepoPath))
-	return &OCIRepository{
-		OCIRepository: or,
-	}, nil
+	return or, nil
 }
 
 func (l *Loader) handleGitRepository(
 	logger zerolog.Logger,
-	gr *sourcev1.GitRepository,
-) (*GitRepository, error) {
+	gr *intres.GitRepository,
+) (*intres.GitRepository, error) {
 	nn := "GitRepository/" + namespacedName(gr)
 	if _, ok := l.repos[nn]; ok {
 		return nil, ErrSkip
@@ -155,9 +153,7 @@ func (l *Loader) handleGitRepository(
 	//}
 
 	l.repos[nn] = fs.KrustyFileSystem(repoFS)
-	return &GitRepository{
-		GitRepository: gr,
-	}, nil
+	return gr, nil
 }
 
 // gitHttpsURL returns a URL that clones via https protocol.
@@ -226,12 +222,12 @@ func gitURLEquals(a, b string) (bool, error) {
 	return au == bu, nil
 }
 
-func gitRepoReference(gr *sourcev1.GitRepository) string {
+func gitRepoReference(gr *intres.GitRepository) string {
 	ref := gr.Spec.Reference
 	return orDefault(orDefault(ref.Commit, ref.Branch), ref.Tag)
 }
 
-func ociRepoReference(gr *sourcev1b2.OCIRepository) string {
+func ociRepoReference(gr *intres.OCIRepository) string {
 	ref := gr.Spec.Reference
 	return orDefault(orDefault(ref.Digest, ref.SemVer), ref.Tag)
 }

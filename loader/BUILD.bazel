@@ -3,10 +3,9 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "loader",
     srcs = [
-        "iter.go",
+        "helm.go",
         "kustomization.go",
         "loader.go",
-        "model.go",
         "option.go",
         "queue.go",
         "repository.go",
@@ -15,11 +14,14 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//fs",
+        "//resource",
         "@com_github_fluxcd_kustomize_controller_api//v1:api",
+        "@com_github_fluxcd_pkg_chartutil//:chartutil",
         "@com_github_fluxcd_pkg_kustomize//:kustomize",
         "@com_github_fluxcd_pkg_oci//client",
         "@com_github_fluxcd_source_controller_api//v1:api",
         "@com_github_fluxcd_source_controller_api//v1beta2",
+        "@com_github_go_logr_zerologr//:zerologr",
         "@com_github_google_go_containerregistry//pkg/crane",
         "@com_github_rs_zerolog//:zerolog",
         "@io_k8s_apimachinery//pkg/api/errors",
@@ -40,8 +42,6 @@ go_library(
 
 go_test(
     name = "loader_test",
-    srcs = [
-        "repository_test.go",
-    ],
+    srcs = ["repository_test.go"],
     embed = [":loader"],
 )

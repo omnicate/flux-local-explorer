@@ -3,18 +3,20 @@ package loader
 import (
 	"context"
 	"fmt"
-	"sort"
 
-	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/kustomize"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	sigyaml "sigs.k8s.io/yaml"
+
+	intres "github.com/omnicate/flx/resource"
 )
 
-func (l *Loader) handleKustomization(
-	queue *Queue,
-	ks *kustomizev1.Kustomization,
-) (*Kustomization, error) {
+func (l *Loader) loadKustomization(
+	ks *intres.Kustomization,
+) (
+	*ResultSet,
+	error,
+) {
 
 	// Load the root exactly once:
 	if l.root == nil {
@@ -65,24 +67,18 @@ func (l *Loader) handleKustomization(
 		}
 	}
 
-	// Optimization: recurse repositories and kustomizations first:
-	sort.Slice(resources, func(i, _ int) bool {
-		res := resources[i]
-		kind := res.GetKind()
-		return kind == "GitRepository" || kind == "OCIRepository" || kind == "Kustomization"
-	})
-
+	// Parse the resulting resources:
 	targetNamespace := orDefault(ks.Spec.TargetNamespace, ks.Namespace)
-	for _, res := range resources {
-		if res.GetNamespace() == "" {
-			_ = res.SetNamespace(targetNamespace)
-		}
-		queue.Push(&QueueItem{Value: res})
+	resultSet, err := l.buildResultSet(resources, targetNamespace)
+	if err != nil {
+		return nil, err
 	}
 
-	kustomization := &Kustomization{
-		Kustomization: ks,
-		Resources:     resources,
+	// Handle them:
+	if err := l.handleResultSet(resultSet); err != nil {
+		return nil, err
 	}
-	return kustomization, nil
+
+	ks.Resources = resultSet.Resources
+	return resultSet, nil
 }

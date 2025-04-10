@@ -6,8 +6,9 @@ import (
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/spf13/cobra"
 
-	"github.com/omnicate/flx/loader"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
+
+	"github.com/omnicate/flx/resource"
 )
 
 var getGitRepoCmd = &cobra.Command{
@@ -19,12 +20,15 @@ var getGitRepoCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		seq := repoLoader.GitRepositories(
+		result, err := repoLoader.Load(
 			filesys.MakeFsOnDisk(),
 			rootArgs.fluxDir,
 			"flux-system",
 		)
-		results, err := getResultsFromSeq(seq)
+		if err != nil {
+			return err
+		}
+		results, err := getResultsFromSeq(result.GitRepositories)
 		if err != nil {
 			return err
 		}
@@ -50,7 +54,7 @@ func gitRepoHeaders() []string {
 	}...)
 }
 
-func gitRepoRows(gr *loader.GitRepository) []string {
+func gitRepoRows(gr *resource.GitRepository) []string {
 	var row []string
 	if getArgs.allNamespaces {
 		row = append(row, gr.Namespace)

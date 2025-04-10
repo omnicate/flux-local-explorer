@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -27,6 +28,8 @@ import (
 	kustypes "sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/kustomize/kyaml/kio"
+
+	intres "github.com/omnicate/flx/resource"
 )
 
 var scheme = runtime.NewScheme()
@@ -49,7 +52,10 @@ var (
 type Loader struct {
 	logger zerolog.Logger
 	cs     client.Client
-	root   *kustomizev1.Kustomization
+	root   *intres.Kustomization
+
+	helmTemplate bool
+	helmRepos    []*intres.HelmRepository
 
 	repos         map[string]filesys.FileSystem
 	repoCachePath string
@@ -64,203 +70,203 @@ func NewLoader(opts ...Option) *Loader {
 		root:          nil,
 		repos:         make(map[string]filesys.FileSystem),
 		repoCachePath: "./cache",
+		helmTemplate:  true,
 	}
 	for _, opt := range opts {
 		opt(l)
 	}
 	return l
 }
-
-func (l *Loader) Kustomizations(
+func (l *Loader) Load(
 	fs filesys.FileSystem,
 	path string,
-	namespace string,
-) ErrSeq[*Kustomization] {
-	seq := l.Iter(fs, path, namespace)
-	return typedIter[*Kustomization](seq)
-}
-
-func (l *Loader) GitRepositories(
-	fs filesys.FileSystem,
-	path string,
-	namespace string,
-) ErrSeq[*GitRepository] {
-	seq := l.Iter(fs, path, namespace)
-	return typedIter[*GitRepository](seq)
-}
-
-func (l *Loader) OCIRepositories(
-	fs filesys.FileSystem,
-	path string,
-	namespace string,
-) ErrSeq[*OCIRepository] {
-	seq := l.Iter(fs, path, namespace)
-	return typedIter[*OCIRepository](seq)
-}
-
-func (l *Loader) Iter(
-	fs filesys.FileSystem,
-	path string,
-	namespace string,
-) ErrSeq[NamedResource] {
+	defaultNamespace string,
+) (*ResultSet, error) {
 	start := time.Now()
-	return func(yield func(NamedResource, error) bool) {
-		l.logger.Debug().
-			Str("path", path).
-			Str("cache", l.repoCachePath).
-			Msg("loading resources")
 
-		direct, err := l.loadPath(fs, path)
-		if err != nil {
-			yield(nil, fmt.Errorf("loading %s: %w", path, err))
-			return
+	direct, err := l.loadPath(fs, path)
+	if err != nil {
+		return nil, fmt.Errorf("loading %s: %w", path, err)
+	}
+	resultSet, err := l.buildResultSet(direct, defaultNamespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build root Kustomization: %w", err)
+	}
+	if err := l.handleResultSet(resultSet); err != nil {
+		return nil, fmt.Errorf("could not build initial source set")
+	}
+
+	queue := new(Queue)
+
+	for _, ks := range resultSet.Kustomizations {
+		queue.Push(&QueueItem{
+			Value:   ks,
+			Attempt: 0,
+		})
+	}
+
+	for {
+		item, ok := queue.Pop()
+		if !ok {
+			break
 		}
-		queue := new(Queue)
-		for _, res := range direct {
+		logger := l.logger.
+			With().
+			Str("namespace", item.Value.Namespace).
+			Str("name", item.Value.Name).
+			Logger()
+
+		logger.Debug().Msg("loading kustomization")
+
+		ksResultSet, err := l.loadKustomization(item.Value)
+		if errors.Is(err, ErrSkip) {
+			logger.Debug().Err(err).Msg("skipping")
+			continue
+		} else if err != nil {
+			if !queue.Retry(item, err) {
+				logger.Debug().Msg("failed")
+			}
+			continue
+		}
+
+		resultSet.Merge(ksResultSet)
+
+		for _, ks := range ksResultSet.Kustomizations {
 			queue.Push(&QueueItem{
-				Value: res,
+				Value:   ks,
+				Attempt: 0,
 			})
 		}
-
-		for {
-			item, ok := queue.Pop()
-			if !ok {
-				break
-			}
-
-			logger := l.logger.With().
-				Str("name", item.NamespacedName()).
-				Str("kind", item.Kind()).
-				Logger()
-
-			// If maximum attempts exceeded, yield the incomplete object:
-			if item.Attempt >= maxAttempts {
-				switch value := item.Value.(type) {
-				case *kustomizev1.Kustomization:
-					if !yield(&Kustomization{
-						Kustomization: value,
-						Error:         item.Err,
-					}, nil) {
-						return
-					}
-				case *sourcev1.GitRepository:
-					if !yield(&GitRepository{
-						GitRepository: value,
-						Error:         item.Err,
-					}, nil) {
-						return
-					}
-				case *sourcev1b2.OCIRepository:
-					if !yield(&OCIRepository{
-						OCIRepository: value,
-						Error:         item.Err,
-					}, nil) {
-						return
-					}
-				}
-				continue
-			}
-
-			var result NamedResource
-			switch value := item.Value.(type) {
-			case *resource.Resource:
-				err = l.handleResource(queue, value, namespace)
-			case *sourcev1.GitRepository:
-				result, err = l.handleGitRepository(logger, value)
-			case *sourcev1b2.OCIRepository:
-				result, err = l.handleOCIRepository(value)
-			case *kustomizev1.Kustomization:
-				result, err = l.handleKustomization(queue, value)
-			default:
-				yield(nil, fmt.Errorf("unknown queue item %T", item.Value))
-				return
-			}
-			if errors.Is(err, ErrSkip) {
-				logger.Debug().Msg("item skipped")
-			} else if err != nil {
-				queue.Retry(item, err)
-				logger.Debug().
-					Err(err).
-					Int("attempt", item.Attempt).
-					Msg("retrying")
-			} else {
-				if !yield(result, nil) {
-					logger.Debug().
-						Str("duration", time.Since(start).String()).
-						Msg("stop yielding")
-					return
-				}
-			}
-		}
-
-		l.logger.Debug().
-			Str("duration", time.Since(start).String()).
-			Msg("stop yielding")
 	}
+
+	l.logger.Debug().
+		Str("elapsed", time.Since(start).String()).
+		Msg("done")
+
+	return resultSet, nil
 }
 
-var traverseResourceKinds = map[string]struct{}{
-	"Kustomization": {},
-	"GitRepository": {},
-	"OCIRepository": {},
-	"ConfigMap":     {},
-	"Secret":        {},
+var trackedResourceKinds = map[string]struct{}{
+	"ConfigMap": {},
+	"Secret":    {},
 }
 
-func (l *Loader) handleResource(queue *Queue, res *resource.Resource, namespace string) error {
-	kind := res.GetKind()
-	if _, ok := traverseResourceKinds[kind]; !ok {
-		return nil
-	}
-	if res.GetNamespace() == "" {
-		_ = res.SetNamespace(namespace)
-	}
+func (l *Loader) handleResultSet(rs *ResultSet) error {
 
-	yamlBytes, err := res.AsYAML()
-	if err != nil {
-		return fmt.Errorf("failed to convert resource to YAML: %v", err)
-	}
-
-	apiVersion := res.GetApiVersion()
-	if apiVersion == "kustomize.toolkit.fluxcd.io/v1" && kind == "Kustomization" {
-		ks := new(kustomizev1.Kustomization)
-		if err := sigyaml.Unmarshal(yamlBytes, ks); err != nil {
-			return err
+	// Insert resources we're interested in to the fake k8s client:
+	for _, res := range rs.Resources {
+		// Only store objects that we are interested in:
+		if _, ok := trackedResourceKinds[res.GetKind()]; !ok {
+			continue
 		}
-		queue.Push(&QueueItem{Value: ks})
-		return nil
-	}
-
-	if apiVersion == "source.toolkit.fluxcd.io/v1" && kind == "GitRepository" {
-		gr := new(sourcev1.GitRepository)
-		if err := sigyaml.Unmarshal(yamlBytes, gr); err != nil {
-			return err
+		yamlBytes, err := res.AsYAML()
+		if err != nil {
+			return fmt.Errorf("failed to convert resource to YAML: %v", err)
 		}
-		queue.Push(&QueueItem{Value: gr})
-		return nil
-	}
-
-	if apiVersion == "source.toolkit.fluxcd.io/v1beta2" && kind == "OCIRepository" {
-		or := new(sourcev1b2.OCIRepository)
-		if err := sigyaml.Unmarshal(yamlBytes, or); err != nil {
-			return err
+		var obj unstructured.Unstructured
+		if err := sigyaml.Unmarshal(yamlBytes, &obj); err != nil {
+			// Only one chance to unmarshal into valid k8s resource.
+			// Do not treat files that are not valid resources.
+			//return fmt.Errorf("failed to unmarshal YAML into Unstructured: %v", err)
+			continue
 		}
-		queue.Push(&QueueItem{Value: or})
-		return nil
+		if err = l.cs.Create(context.Background(), &obj); err != nil && !k8serrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create resource: %v", err)
+		}
 	}
 
-	var obj unstructured.Unstructured
-	if err := sigyaml.Unmarshal(yamlBytes, &obj); err != nil {
-		// Only one chance to unmarshal into valid k8s resource.
-		// Do not treat files that are not valid resources.
-		//return fmt.Errorf("failed to unmarshal YAML into Unstructured: %v", err)
-		return nil
+	// Sort git repositories:
+	sort.Slice(rs.GitRepositories, func(i, j int) bool {
+		a, b := rs.GitRepositories[i], rs.GitRepositories[j]
+		return len(a.Spec.Include) < len(b.Spec.Include)
+	})
+
+	for _, r := range rs.GitRepositories {
+		if _, err := l.handleGitRepository(l.logger, r); err != nil {
+			r.Error = err
+			continue
+		}
 	}
-	if err = l.cs.Create(context.Background(), &obj); err != nil && !k8serrors.IsAlreadyExists(err) {
-		return fmt.Errorf("failed to create resource: %v", err)
+	for _, r := range rs.OCIRepositories {
+		if _, err := l.handleOCIRepository(r); err != nil {
+			r.Error = err
+			continue
+		}
+	}
+	for _, r := range rs.HelmRepositories {
+		if _, err := l.handleHelmRepository(r); err != nil {
+			r.Error = err
+			continue
+		}
+	}
+
+	// Execute helm releases recursively:
+	for _, r := range rs.HelmReleases {
+		helmResult, err := l.renderHelmRelease(r)
+		if err != nil {
+			l.logger.Err(err).Msg("failed to render helm release")
+			r.Error = err
+			continue
+		}
+		if err := l.handleResultSet(helmResult); err != nil {
+			l.logger.Err(err).Msg("failed to handle result set")
+			r.Error = err
+			continue
+		}
+		rs.Merge(helmResult)
 	}
 
 	return nil
+}
+
+func (l *Loader) buildResultSet(
+	resources []*resource.Resource,
+	defaultNamespace string,
+) (
+	*ResultSet,
+	error,
+) {
+	result := EmptyResultSet()
+	for _, res := range resources {
+		if res.GetNamespace() == "" {
+			_ = res.SetNamespace(defaultNamespace)
+		}
+		switch res.GetKind() {
+		case intres.OCIRepositoryKind:
+			hr, err := intres.NewOCIRepository(res)
+			if err != nil {
+				return nil, err
+			}
+			result.OCIRepositories = append(result.OCIRepositories, hr)
+		case intres.GitRepositoryKind:
+			hr, err := intres.NewGitRepository(res)
+			if err != nil {
+				return nil, err
+			}
+			result.GitRepositories = append(result.GitRepositories, hr)
+		case intres.KustomizationKind:
+			hr, err := intres.NewKustomization(res)
+			if err != nil {
+				return nil, err
+			}
+			result.Kustomizations = append(result.Kustomizations, hr)
+		case intres.HelmRepositoryKind:
+			hr, err := intres.NewHelmRepository(res)
+			if err != nil {
+				return nil, err
+			}
+			result.HelmRepositories = append(result.HelmRepositories, hr)
+		case intres.HelmReleaseKind:
+			hr, err := intres.NewHelmRelease(res)
+			if err != nil {
+				return nil, err
+			}
+			result.HelmReleases = append(result.HelmReleases, hr)
+		default:
+			result.Resources = append(result.Resources, res)
+		}
+	}
+	return result, nil
 }
 
 var kustomizer = krusty.MakeKustomizer(&krusty.Options{
@@ -326,6 +332,40 @@ func (l *Loader) loadBytes(data []byte) ([]*resource.Resource, error) {
 		}
 	}
 	return resources, nil
+}
+
+type ResultSet struct {
+	Kustomizations   []*intres.Kustomization
+	GitRepositories  []*intres.GitRepository
+	OCIRepositories  []*intres.OCIRepository
+	HelmReleases     []*intres.HelmRelease
+	HelmRepositories []*intres.HelmRepository
+	Resources        []*resource.Resource
+}
+
+func EmptyResultSet() *ResultSet {
+	return &ResultSet{}
+}
+
+func (rs *ResultSet) Merge(other *ResultSet) {
+	for _, v := range other.Kustomizations {
+		rs.Kustomizations = append(rs.Kustomizations, v)
+	}
+	for _, v := range other.GitRepositories {
+		rs.GitRepositories = append(rs.GitRepositories, v)
+	}
+	for _, v := range other.OCIRepositories {
+		rs.OCIRepositories = append(rs.OCIRepositories, v)
+	}
+	for _, v := range other.HelmReleases {
+		rs.HelmReleases = append(rs.HelmReleases, v)
+	}
+	for _, v := range other.HelmRepositories {
+		rs.HelmRepositories = append(rs.HelmRepositories, v)
+	}
+	for _, v := range other.Resources {
+		rs.Resources = append(rs.Resources, v)
+	}
 }
 
 func orDefault[T comparable](a, def T) T {

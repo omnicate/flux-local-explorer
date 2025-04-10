@@ -74,29 +74,22 @@ func sortResources[T loader.NamedResource](list []T) {
 }
 
 func getResultsFromSeq[T loader.NamedResource](
-	seq loader.ErrSeq[T],
+	resources []T,
 ) ([]T, error) {
 	var results []T
-	if getArgs.namespace != "" && getArgs.name != "" {
-		ks, err := seq.Find(func(item T) bool {
-			ns, name := item.GetNamespace(), item.GetName()
-			return ns == getArgs.namespace && name == getArgs.name
-		})
-		if err != nil {
-			return nil, err
+
+	for _, res := range resources {
+		if getArgs.allNamespaces {
+			results = append(results, res)
+			continue
 		}
-		results = append(results, ks)
-	} else {
-		ks, err := seq.Filter(func(item T) bool {
-			if getArgs.allNamespaces {
-				return true
-			}
-			return getArgs.namespace == item.GetNamespace()
-		}).Collect()
-		if err != nil {
-			return nil, err
+		if ns := getArgs.namespace; ns != "" && res.GetNamespace() != ns {
+			continue
 		}
-		results = append(results, ks...)
+		if name := getArgs.name; name != "" && res.GetName() != name {
+			continue
+		}
+		results = append(results, res)
 	}
 	if len(results) == 0 {
 		return nil, fmt.Errorf("no resources")

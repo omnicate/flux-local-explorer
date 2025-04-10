@@ -7,7 +7,7 @@ import (
 
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/omnicate/flx/loader"
+	"github.com/omnicate/flx/resource"
 )
 
 // getKustomizationCmd represents the getKustomization command
@@ -20,12 +20,15 @@ var getKustomizationCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		seq := repoLoader.Kustomizations(
+		result, err := repoLoader.Load(
 			filesys.MakeFsOnDisk(),
 			rootArgs.fluxDir,
 			"flux-system",
 		)
-		results, err := getResultsFromSeq(seq)
+		if err != nil {
+			return err
+		}
+		results, err := getResultsFromSeq(result.Kustomizations)
 		if err != nil {
 			return err
 		}
@@ -59,7 +62,7 @@ func kustomizationHeaders() []string {
 	}...)
 }
 
-func kustomizationRows(ks *loader.Kustomization) []string {
+func kustomizationRows(ks *resource.Kustomization) []string {
 	var row []string
 	if getArgs.allNamespaces {
 		row = append(row, ks.Namespace)
@@ -72,7 +75,7 @@ func kustomizationRows(ks *loader.Kustomization) []string {
 	}...)
 }
 
-func formatSource(ks *loader.Kustomization) string {
+func formatSource(ks *resource.Kustomization) string {
 	ns := ks.Namespace
 	if sourceNs := ks.Spec.SourceRef.Namespace; sourceNs != "" {
 		ns = sourceNs

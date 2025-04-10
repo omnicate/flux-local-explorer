@@ -6,7 +6,6 @@ go_sdk.download(version = "1.23.2")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//:go.mod")
-
 go_deps.module_override(
     patch_strip = 1,
     patches = [
@@ -17,12 +16,18 @@ go_deps.module_override(
 use_repo(
     go_deps,
     "com_github_fluxcd_flux2_v2",
+    "com_github_fluxcd_helm_controller_api",
     "com_github_fluxcd_kustomize_controller_api",
+    "com_github_fluxcd_pkg_apis_meta",
+    "com_github_fluxcd_pkg_chartutil",
     "com_github_fluxcd_pkg_kustomize",
     "com_github_fluxcd_pkg_oci",
     "com_github_fluxcd_source_controller_api",
     "com_github_go_git_go_git_v5",
+    "com_github_go_logr_zerologr",
+    "com_github_gonvenience_ytbx",
     "com_github_google_go_containerregistry",
+    "com_github_homeport_dyff",
     "com_github_rs_zerolog",
     "com_github_spf13_cobra",
     "com_github_spf13_pflag",
@@ -33,4 +38,5 @@ use_repo(
     "io_k8s_sigs_kustomize_api",
     "io_k8s_sigs_kustomize_kyaml",
     "io_k8s_sigs_yaml",
+    "org_golang_x_sync",
 )

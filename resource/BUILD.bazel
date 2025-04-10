@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resource",
+    srcs = [
+        "git_repository.go",
+        "helm_release.go",
+        "helm_repository.go",
+        "kustomization.go",
+        "meta.go",
+        "oci_repository.go",
+        "resource.go",
+    ],
+    importpath = "github.com/omnicate/flx/resource",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_fluxcd_helm_controller_api//v2:api",
+        "@com_github_fluxcd_helm_controller_api//v2beta1",
+        "@com_github_fluxcd_helm_controller_api//v2beta2",
+        "@com_github_fluxcd_kustomize_controller_api//v1:api",
+        "@com_github_fluxcd_pkg_apis_meta//:meta",
+        "@com_github_fluxcd_source_controller_api//v1:api",
+        "@com_github_fluxcd_source_controller_api//v1beta1",
+        "@com_github_fluxcd_source_controller_api//v1beta2",
+        "@io_k8s_sigs_kustomize_api//resource",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)
+
+go_test(
+    name = "loader_test",
+    srcs = ["repository_test.go"],
+    embed = [":loader"],
+)
