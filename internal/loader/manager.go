@@ -1,4 +1,4 @@
-package kube
+package loader
 
 import (
 	"context"
@@ -10,8 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/omnicate/flx/loader"
-	"github.com/omnicate/flx/loader/controller"
+	"github.com/omnicate/flx/internal/controller"
 )
 
 const maxIterations = 4096
@@ -46,7 +45,7 @@ func (m *Manager) Initialize(
 	path string,
 	defaultNamespace string,
 ) error {
-	resources, err := loader.LoadPath(fs, path)
+	resources, err := LoadPath(fs, path)
 	if err != nil {
 		return fmt.Errorf("loading %s: %w", path, err)
 	}

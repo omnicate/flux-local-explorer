@@ -9,7 +9,7 @@ go_library(
         "mount.go",
         "prefix.go",
     ],
-    importpath = "github.com/omnicate/flx/fs",
+    importpath = "github.com/omnicate/flx/internal/fs",
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_go_git_go_git_v5//:go-git",

@@ -3,10 +3,10 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "extsecret",
     srcs = ["controller.go"],
-    importpath = "github.com/omnicate/flx/loader/controller/extsecret",
+    importpath = "github.com/omnicate/flx/internal/controller/extsecret",
     visibility = ["//visibility:public"],
     deps = [
-        "//loader/controller",
+        "//internal/controller",
         "@com_github_external_secrets_external_secrets//apis/externalsecrets/v1beta1",
         "@com_github_rs_zerolog//:zerolog",
         "@io_k8s_api//core/v1:core",

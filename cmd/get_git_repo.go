@@ -6,7 +6,7 @@ import (
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/spf13/cobra"
 
-	"github.com/omnicate/flx/loader/kube"
+	"github.com/omnicate/flx/internal/loader"
 )
 
 var getGitRepoCmd = &cobra.Command{
@@ -18,15 +18,19 @@ var getGitRepoCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		if err := repoLoader.Run(); err != nil {
+		mgr, err := newManager(true)
+		if err != nil {
 			return err
 		}
-		results := repoLoader.ListWithKind(
+		if err := mgr.Run(); err != nil {
+			return err
+		}
+		results := mgr.ListWithKind(
 			"GitRepository",
 			getArgs.namespace,
 			getArgs.allNamespaces,
 		)
-		results = filterResults(results)
+		results = filterResults(results, getArgs.name, getArgs.namespace, getArgs.allNamespaces)
 		return printResults(results, gitRepoHeaders, gitRepoRows)
 	},
 }
@@ -49,7 +53,7 @@ func gitRepoHeaders() []string {
 	}...)
 }
 
-func gitRepoRows(rn *kube.ResourceNode) []string {
+func gitRepoRows(rn *loader.ResourceNode) []string {
 	var gr sourcev1.GitRepository
 	rn.Resource.Unmarshal(&gr)
 	var row []string

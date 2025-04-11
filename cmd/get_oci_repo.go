@@ -4,7 +4,7 @@ import (
 	sourcev1b2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/spf13/cobra"
 
-	"github.com/omnicate/flx/loader/kube"
+	"github.com/omnicate/flx/internal/loader"
 )
 
 var getOciRepoCmd = &cobra.Command{
@@ -16,15 +16,19 @@ var getOciRepoCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		if err := repoLoader.Run(); err != nil {
+		mgr, err := newManager(true)
+		if err != nil {
 			return err
 		}
-		results := repoLoader.ListWithKind(
+		if err := mgr.Run(); err != nil {
+			return err
+		}
+		results := mgr.ListWithKind(
 			"OCIRepository",
 			getArgs.namespace,
 			getArgs.allNamespaces,
 		)
-		results = filterResults(results)
+		results = filterResults(results, getArgs.name, getArgs.namespace, getArgs.allNamespaces)
 		return printResults(results, ociRepoHeaders, ociRepoRows)
 	},
 }
@@ -46,7 +50,7 @@ func ociRepoHeaders() []string {
 	}...)
 }
 
-func ociRepoRows(rn *kube.ResourceNode) []string {
+func ociRepoRows(rn *loader.ResourceNode) []string {
 	var or sourcev1b2.OCIRepository
 	rn.Resource.Unmarshal(&or)
 

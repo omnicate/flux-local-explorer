@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 
-	"github.com/omnicate/flx/loader/kube"
+	"github.com/omnicate/flx/internal/loader"
 )
 
 type GetFlags struct {
@@ -54,7 +54,7 @@ func init() {
 	rootCmd.AddCommand(getCmd)
 }
 
-func sortResources(list []*kube.ResourceNode) {
+func sortResources(list []*loader.ResourceNode) {
 	sort.Slice(list, func(i, j int) bool {
 		{
 			a, b := list[i].Resource.GetNamespace(), list[j].Resource.GetNamespace()
@@ -73,19 +73,22 @@ func sortResources(list []*kube.ResourceNode) {
 }
 
 func filterResults(
-	resources []*kube.ResourceNode,
-) []*kube.ResourceNode {
-	var results []*kube.ResourceNode
+	resources []*loader.ResourceNode,
+	filterName string,
+	filterNamespace string,
+	filterAllNamespaces bool,
+) []*loader.ResourceNode {
+	var results []*loader.ResourceNode
 
 	for _, res := range resources {
-		if getArgs.allNamespaces {
+		if filterAllNamespaces {
 			results = append(results, res)
 			continue
 		}
-		if ns := getArgs.namespace; ns != "" && res.Resource.GetNamespace() != ns {
+		if ns := filterNamespace; ns != "" && res.Resource.GetNamespace() != ns {
 			continue
 		}
-		if name := getArgs.name; name != "" && res.Resource.GetName() != name {
+		if name := filterName; name != "" && res.Resource.GetName() != name {
 			continue
 		}
 		results = append(results, res)
@@ -95,10 +98,13 @@ func filterResults(
 }
 
 func printResults(
-	results []*kube.ResourceNode,
+	results []*loader.ResourceNode,
 	headerFunc func() []string,
-	rowFunc func(node *kube.ResourceNode) []string,
+	rowFunc func(node *loader.ResourceNode) []string,
 ) error {
+	if len(results) == 0 {
+		return fmt.Errorf("no results")
+	}
 	switch getArgs.format {
 	case "pretty":
 		var rows [][]string

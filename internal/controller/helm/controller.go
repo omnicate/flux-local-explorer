@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
 	helmv2b1 "github.com/fluxcd/helm-controller/api/v2beta1"
@@ -20,8 +21,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	sigyaml "sigs.k8s.io/yaml"
 
-	"github.com/omnicate/flx/loader"
-	ctrl "github.com/omnicate/flx/loader/controller"
+	ctrl "github.com/omnicate/flx/internal/controller"
+	"github.com/omnicate/flx/internal/loader"
 )
 
 func init() {
@@ -35,6 +36,7 @@ var _ ctrl.Controller = new(Controller)
 type Controller struct {
 	logger zerolog.Logger
 	opts   Options
+	mu     sync.Mutex
 }
 
 func NewController(logger zerolog.Logger, opts Options) *Controller {
@@ -73,11 +75,14 @@ type helmRepository struct {
 	} `json:"spec"`
 }
 
-func (r Controller) Kinds() []string {
+func (r *Controller) Kinds() []string {
 	return []string{"HelmRelease"}
 }
 
-func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Result, error) {
+func (r *Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Result, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	var hr helmRelease
 	if err := req.Unmarshal(&hr); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal helm release: %w", err)

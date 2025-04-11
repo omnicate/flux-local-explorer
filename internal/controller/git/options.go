@@ -1,7 +1,7 @@
 package git
 
 import (
-	ctrl "github.com/omnicate/flx/loader/controller"
+	ctrl "github.com/omnicate/flx/internal/controller"
 )
 
 type Options struct {

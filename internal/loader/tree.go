@@ -1,11 +1,11 @@
-package kube
+package loader
 
 import (
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/omnicate/flx/loader/controller"
+	"github.com/omnicate/flx/internal/controller"
 )
 
 type ResourceStatus int

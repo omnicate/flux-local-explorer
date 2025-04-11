@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	ociclient "github.com/fluxcd/pkg/oci/client"
 	sourcev1b2 "github.com/fluxcd/source-controller/api/v1beta2"
@@ -15,8 +16,8 @@ import (
 	"github.com/rs/zerolog"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/omnicate/flx/fs"
-	ctrl "github.com/omnicate/flx/loader/controller"
+	ctrl "github.com/omnicate/flx/internal/controller"
+	"github.com/omnicate/flx/internal/fs"
 )
 
 func init() {
@@ -28,6 +29,7 @@ var _ ctrl.Controller = new(Controller)
 type Controller struct {
 	logger zerolog.Logger
 	opts   Options
+	mu     sync.Mutex
 }
 
 func NewController(logger zerolog.Logger, opts Options) *Controller {
@@ -39,6 +41,9 @@ func (l *Controller) Kinds() []string {
 }
 
 func (l *Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Result, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	var or sourcev1b2.OCIRepository
 	if err := req.Unmarshal(&or); err != nil {
 		return nil, err

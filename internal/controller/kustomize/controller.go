@@ -10,8 +10,8 @@ import (
 	"github.com/rs/zerolog"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/omnicate/flx/loader"
-	ctrl "github.com/omnicate/flx/loader/controller"
+	ctrl "github.com/omnicate/flx/internal/controller"
+	"github.com/omnicate/flx/internal/loader"
 )
 
 func init() {

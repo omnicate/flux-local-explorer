@@ -7,13 +7,14 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/rs/zerolog"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/omnicate/flx/fs"
-	ctrl "github.com/omnicate/flx/loader/controller"
+	ctrl "github.com/omnicate/flx/internal/controller"
+	"github.com/omnicate/flx/internal/fs"
 )
 
 func init() {
@@ -23,17 +24,21 @@ func init() {
 type Controller struct {
 	logger zerolog.Logger
 	opts   Options
+	mu     sync.Mutex
 }
 
 func NewController(logger zerolog.Logger, opts Options) *Controller {
 	return &Controller{logger: logger, opts: opts}
 }
 
-func (g Controller) Kinds() []string {
+func (g *Controller) Kinds() []string {
 	return []string{"GitRepository"}
 }
 
-func (g Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Result, error) {
+func (g *Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Result, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
 	var gr sourcev1.GitRepository
 	if err := req.Unmarshal(&gr); err != nil {
 		return nil, err

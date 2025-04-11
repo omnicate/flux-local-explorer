@@ -2,10 +2,17 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "loader",
-    srcs = ["loader.go"],
-    importpath = "github.com/omnicate/flx/loader",
+    srcs = [
+        "loader.go",
+        "manager.go",
+        "tree.go",
+    ],
+    importpath = "github.com/omnicate/flx/internal/loader",
     visibility = ["//visibility:public"],
     deps = [
+        "//internal/controller",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_controller_runtime//pkg/client/fake",
         "@io_k8s_sigs_kustomize_api//konfig",
         "@io_k8s_sigs_kustomize_api//krusty",
         "@io_k8s_sigs_kustomize_api//resource",

@@ -79,11 +79,3 @@ func LoadBytes(data []byte) ([]*resource.Resource, error) {
 	}
 	return resources, nil
 }
-
-func orDefault[T comparable](a, def T) T {
-	var zero T
-	if a == zero {
-		return def
-	}
-	return a
-}

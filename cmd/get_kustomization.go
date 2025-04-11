@@ -2,12 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/spf13/cobra"
 
-	"github.com/omnicate/flx/loader/kube"
+	"github.com/omnicate/flx/internal/loader"
 )
 
 // getKustomizationCmd represents the getKustomization command
@@ -20,20 +19,19 @@ var getKustomizationCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-
-		start := time.Now()
-		if err := repoLoader.Run(); err != nil {
+		mgr, err := newManager(true)
+		if err != nil {
 			return err
 		}
-		logger.Debug().Str("elapsed", time.Since(start).String()).Msg("done")
-
-		results := repoLoader.ListWithKind(
+		if err := mgr.Run(); err != nil {
+			return err
+		}
+		results := mgr.ListWithKind(
 			"Kustomization",
 			getArgs.namespace,
 			getArgs.allNamespaces,
 		)
-
-		results = filterResults(results)
+		results = filterResults(results, getArgs.name, getArgs.namespace, getArgs.allNamespaces)
 
 		if getArgs.format == "kustomize" {
 			for _, re := range results {
@@ -66,7 +64,7 @@ func kustomizationHeaders() []string {
 	}...)
 }
 
-func kustomizationRows(rn *kube.ResourceNode) []string {
+func kustomizationRows(rn *loader.ResourceNode) []string {
 	var row []string
 	if getArgs.allNamespaces {
 		row = append(row, rn.Resource.GetNamespace())
