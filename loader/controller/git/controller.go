@@ -1,4 +1,4 @@
-package controller
+package git
 
 import (
 	"crypto/md5"
@@ -6,79 +6,46 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
-	"sort"
 	"strings"
 
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/rs/zerolog"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/omnicate/flx/fs"
-	"github.com/omnicate/flx/loader"
-	intres "github.com/omnicate/flx/resource"
+	ctrl "github.com/omnicate/flx/loader/controller"
 )
 
-type GitLocalReplace struct {
-	Remote string
-	Path   string
-
-	Commit string
-	Branch string
-	Tag    string
+func init() {
+	_ = sourcev1.AddToScheme(ctrl.Scheme)
 }
 
-func (l *GitLocalReplace) Ref() string {
-	return orDefault(orDefault(l.Commit, l.Branch), l.Tag)
+type Controller struct {
+	logger zerolog.Logger
+	opts   Options
 }
 
-type Git struct {
-	logger      zerolog.Logger
-	cachePath   string
-	repos       map[string]filesys.FileSystem
-	repoReplace []*GitLocalReplace
-	gitViaHTTPS bool
+func NewController(logger zerolog.Logger, opts Options) *Controller {
+	return &Controller{logger: logger, opts: opts}
 }
 
-func NewGit(logger zerolog.Logger, cachePath string, repoReplace []*GitLocalReplace, gitViaHTTPS bool) *Git {
-	return &Git{logger: logger, cachePath: cachePath, repos: map[string]filesys.FileSystem{}, repoReplace: repoReplace, gitViaHTTPS: gitViaHTTPS}
+func (g Controller) Kinds() []string {
+	return []string{"GitRepository"}
 }
 
-func (l *Git) Get(kind, namespace, name string) (any, error) {
-	if kind == "GitRepository" {
-		fileSys, ok := l.repos[namespace+"/"+name]
-		if !ok {
-			return nil, ErrNotFound
-		}
-		return fileSys, nil
+func (g Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Result, error) {
+	var gr sourcev1.GitRepository
+	if err := req.Unmarshal(&gr); err != nil {
+		return nil, err
 	}
-	return nil, ErrNotFound
-}
 
-func (l *Git) Handle(rs *loader.ResultSet) (*loader.ResultSet, error) {
-	sort.Slice(rs.GitRepositories, func(i, j int) bool {
-		a, b := rs.GitRepositories[i], rs.GitRepositories[j]
-		return len(a.Spec.Include) < len(b.Spec.Include)
-	})
-	for _, r := range rs.GitRepositories {
-		if _, err := l.handleGitRepository(l.logger, r); err != nil {
-			r.Error = err
-			continue
-		}
-	}
-	return loader.EmptyResultSet(), nil
-}
-
-func (l *Git) handleGitRepository(
-	logger zerolog.Logger,
-	gr *intres.GitRepository,
-) (*intres.GitRepository, error) {
-	nn := namespacedName(gr)
-	if _, ok := l.repos[nn]; ok {
-		return nil, nil
+	if gr.Spec.Reference == nil {
+		return nil, fmt.Errorf("git repo reference is required")
 	}
 
 	var remoteURL string
 	var err error
-	if l.gitViaHTTPS {
+	if g.opts.UseHTTPS {
 		remoteURL, err = gitHttpsURL(gr.Spec.URL)
 	} else {
 		remoteURL, err = gitSSHUrl(gr.Spec.URL)
@@ -87,7 +54,7 @@ func (l *Git) handleGitRepository(
 		return nil, fmt.Errorf("git url: %w", err)
 	}
 
-	logger.Debug().
+	g.logger.Debug().
 		Str("url", remoteURL).
 		Str("ref", gitRepoReference(gr)).
 		Msg("loading git repository")
@@ -104,7 +71,7 @@ func (l *Git) handleGitRepository(
 	gitRef := gitRepoReference(gr)
 
 	var isLocal bool
-	for _, lgr := range l.repoReplace {
+	for _, lgr := range g.opts.Local {
 		equals, err := gitURLEquals(lgr.Remote, remoteURL)
 		if err != nil {
 			return nil, fmt.Errorf("git url equals: %w", err)
@@ -115,7 +82,7 @@ func (l *Git) handleGitRepository(
 				lgr.Path,
 			)
 			isLocal = true
-			logger.Debug().
+			g.logger.Debug().
 				Str("url", gr.Spec.URL).
 				Str("local", lgr.Path).
 				Msg("using local file system")
@@ -128,7 +95,7 @@ func (l *Git) handleGitRepository(
 		var gitRepoPath string
 		md5h := md5.Sum([]byte(remoteURL))
 		hash := hex.EncodeToString(md5h[:])
-		gitRepoPath = filepath.Join(l.cachePath, hash)
+		gitRepoPath = filepath.Join(g.opts.CachePath, hash)
 		repoFS, err = fs.Git(
 			gitRepoPath,
 			remoteURL,
@@ -142,34 +109,39 @@ func (l *Git) handleGitRepository(
 	// Handle includes:
 	mountPoints := make([]*fs.MountPoint, 0)
 	for _, include := range gr.Spec.Include {
-		repoName := fmt.Sprintf(
-			"%s/%s",
+		includedAttachment, ok := ctx.GetAttachment(
+			"GitRepository",
 			gr.Namespace,
 			include.GitRepositoryRef.Name,
 		)
-		includedRepo, ok := l.repos[repoName]
 		if !ok {
-			return nil, fmt.Errorf("include %s not found", repoName)
+			return nil, fmt.Errorf(
+				"include %s/%s not found",
+				gr.Namespace,
+				include.GitRepositoryRef.Name,
+			)
+		}
+		includedFS, ok := includedAttachment.(filesys.FileSystem)
+		if !ok {
+			return nil, fmt.Errorf(
+				"include %s/%s has invalid attachment: %T",
+				gr.Namespace,
+				include.GitRepositoryRef.Name,
+				includedAttachment,
+			)
 		}
 		mountPoints = append(mountPoints, &fs.MountPoint{
-			Location: orDefault(include.ToPath, include.GitRepositoryRef.Name),
+			Location: ctrl.Any(include.ToPath, include.GitRepositoryRef.Name),
 			Path:     include.FromPath,
-			FS:       includedRepo,
+			FS:       includedFS,
 		})
 	}
 	if len(mountPoints) > 0 {
 		repoFS = fs.Mount(repoFS, mountPoints...)
 	}
 
-	// Enable caching:
-	//{
-	//	md5h := md5.Sum([]byte(remoteURL + gitRef))
-	//	hash := hex.EncodeToString(md5h[:])
-	//	repoFS = fs.Cache(repoFS, filepath.Join(l.repoCachePath, gr.Namespace+"-"+gr.Name+"-"+hash))
-	//}
-
-	l.repos[nn] = fs.KrustyFileSystem(repoFS)
-	return gr, nil
+	attachment := fs.KrustyFileSystem(repoFS)
+	return &ctrl.Result{Attachment: attachment}, nil
 }
 
 // gitHttpsURL returns a URL that clones via https protocol.
@@ -238,12 +210,7 @@ func gitURLEquals(a, b string) (bool, error) {
 	return au == bu, nil
 }
 
-func gitRepoReference(gr *intres.GitRepository) string {
+func gitRepoReference(gr sourcev1.GitRepository) string {
 	ref := gr.Spec.Reference
-	return orDefault(orDefault(ref.Commit, ref.Branch), ref.Tag)
-}
-
-func ociRepoReference(gr *intres.OCIRepository) string {
-	ref := gr.Spec.Reference
-	return orDefault(orDefault(ref.Digest, ref.SemVer), ref.Tag)
+	return ctrl.Any(ref.Commit, ref.Branch, ref.Tag)
 }

@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "git",
+    srcs = [
+        "controller.go",
+        "options.go",
+    ],
+    importpath = "github.com/omnicate/flx/loader/controller/git",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//fs",
+        "//loader/controller",
+        "@com_github_fluxcd_source_controller_api//v1:api",
+        "@com_github_rs_zerolog//:zerolog",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)
+
+go_test(
+    name = "git_test",
+    srcs = ["controller_test.go"],
+    embed = [":git"],
+)

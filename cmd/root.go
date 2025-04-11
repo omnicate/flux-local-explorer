@@ -14,9 +14,15 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/omnicate/flx/loader/controller"
-	"github.com/omnicate/flx/loader/manager"
+	ctrl "github.com/omnicate/flx/loader/controller"
+	"github.com/omnicate/flx/loader/controller/extsecret"
+	"github.com/omnicate/flx/loader/controller/git"
+	"github.com/omnicate/flx/loader/controller/helm"
+	"github.com/omnicate/flx/loader/controller/kustomize"
+	"github.com/omnicate/flx/loader/controller/oci"
+	"github.com/omnicate/flx/loader/kube"
 )
 
 type RootFlags struct {
@@ -37,8 +43,9 @@ type RootFlags struct {
 }
 
 var (
-	logger   zerolog.Logger
-	rootArgs RootFlags
+	logger     zerolog.Logger
+	rootArgs   RootFlags
+	repoLoader *kube.Manager
 )
 
 var rootCmd = &cobra.Command{
@@ -78,18 +85,46 @@ var rootCmd = &cobra.Command{
 			Str("branch", rootArgs.localBranch).
 			Msg("using local git repository")
 
-		opts := []manager.Option{
-			manager.WithLocalRepoRef(&controller.GitLocalReplace{
-				Remote: rootArgs.localRemote,
-				Path:   rootArgs.localPath,
-				Branch: rootArgs.localBranch,
-			}),
-			manager.WithLogger(logger),
-			manager.WithRepoCachePath(rootArgs.cacheDir),
-			manager.WithGitForceHTTPS(rootArgs.gitForceHTTPS),
-		}
-		repoLoader = manager.NewLoader(opts...)
-		return nil
+		repoLoader = kube.NewManager([]ctrl.Controller{
+			git.NewController(
+				logger.With().Str("controller", "git").Logger(),
+				git.Options{
+					CachePath: rootArgs.cacheDir,
+					UseHTTPS:  rootArgs.gitForceHTTPS,
+					Local: []*git.LocalReplace{
+						{
+							Remote: rootArgs.localRemote,
+							Path:   rootArgs.localPath,
+							Branch: rootArgs.localBranch,
+						},
+					},
+				},
+			),
+			kustomize.NewController(
+				logger.With().Str("controller", "kustomize").Logger(),
+			),
+			helm.NewController(
+				logger.With().Str("controller", "kustomize").Logger(),
+				helm.Options{
+					CachePath: rootArgs.cacheDir,
+				},
+			),
+			extsecret.NewController(
+				logger.With().Str("controller", "external-secrets").Logger(),
+			),
+			oci.NewController(
+				logger.With().Str("controller", "oci").Logger(),
+				oci.Options{
+					CachePath: rootArgs.cacheDir,
+				},
+			),
+		})
+
+		return repoLoader.Initialize(
+			filesys.MakeFsOnDisk(),
+			rootArgs.fluxDir,
+			"flux-system",
+		)
 	},
 }
 

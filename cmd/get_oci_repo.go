@@ -4,9 +4,7 @@ import (
 	sourcev1b2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/spf13/cobra"
 
-	"sigs.k8s.io/kustomize/kyaml/filesys"
-
-	"github.com/omnicate/flx/resource"
+	"github.com/omnicate/flx/loader/kube"
 )
 
 var getOciRepoCmd = &cobra.Command{
@@ -18,18 +16,15 @@ var getOciRepoCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		result, err := repoLoader.Load(
-			filesys.MakeFsOnDisk(),
-			rootArgs.fluxDir,
-			"flux-system",
+		if err := repoLoader.Run(); err != nil {
+			return err
+		}
+		results := repoLoader.ListWithKind(
+			"OCIRepository",
+			getArgs.namespace,
+			getArgs.allNamespaces,
 		)
-		if err != nil {
-			return err
-		}
-		results, err := getResultsFromSeq(result.OCIRepositories)
-		if err != nil {
-			return err
-		}
+		results = filterResults(results)
 		return printResults(results, ociRepoHeaders, ociRepoRows)
 	},
 }
@@ -51,7 +46,10 @@ func ociRepoHeaders() []string {
 	}...)
 }
 
-func ociRepoRows(or *resource.OCIRepository) []string {
+func ociRepoRows(rn *kube.ResourceNode) []string {
+	var or sourcev1b2.OCIRepository
+	rn.Resource.Unmarshal(&or)
+
 	var row []string
 	if getArgs.allNamespaces {
 		row = append(row, or.Namespace)
@@ -60,7 +58,7 @@ func ociRepoRows(or *resource.OCIRepository) []string {
 		or.Name,
 		or.Spec.URL,
 		formatOciReference(or.Spec.Reference),
-		errOrEmpty(or.Error),
+		errOrEmpty(rn.Error),
 	}...)
 	return row
 }

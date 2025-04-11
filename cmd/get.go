@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 
-	"github.com/omnicate/flx/loader/manager"
+	"github.com/omnicate/flx/loader/kube"
 )
 
 type GetFlags struct {
@@ -20,8 +20,7 @@ type GetFlags struct {
 }
 
 var (
-	repoLoader *manager.Loader
-	getArgs    GetFlags
+	getArgs GetFlags
 )
 
 // getCmd represents the get command
@@ -55,16 +54,16 @@ func init() {
 	rootCmd.AddCommand(getCmd)
 }
 
-func sortResources[T manager.NamedResource](list []T) {
+func sortResources(list []*kube.ResourceNode) {
 	sort.Slice(list, func(i, j int) bool {
 		{
-			a, b := list[i].GetNamespace(), list[j].GetNamespace()
+			a, b := list[i].Resource.GetNamespace(), list[j].Resource.GetNamespace()
 			if a != b {
 				return a < b
 			}
 		}
 		{
-			a, b := list[i].GetName(), list[j].GetName()
+			a, b := list[i].Resource.GetName(), list[j].Resource.GetName()
 			if a != b {
 				return a < b
 			}
@@ -73,35 +72,32 @@ func sortResources[T manager.NamedResource](list []T) {
 	})
 }
 
-func getResultsFromSeq[T manager.NamedResource](
-	resources []T,
-) ([]T, error) {
-	var results []T
+func filterResults(
+	resources []*kube.ResourceNode,
+) []*kube.ResourceNode {
+	var results []*kube.ResourceNode
 
 	for _, res := range resources {
 		if getArgs.allNamespaces {
 			results = append(results, res)
 			continue
 		}
-		if ns := getArgs.namespace; ns != "" && res.GetNamespace() != ns {
+		if ns := getArgs.namespace; ns != "" && res.Resource.GetNamespace() != ns {
 			continue
 		}
-		if name := getArgs.name; name != "" && res.GetName() != name {
+		if name := getArgs.name; name != "" && res.Resource.GetName() != name {
 			continue
 		}
 		results = append(results, res)
 	}
-	if len(results) == 0 {
-		return nil, fmt.Errorf("no resources")
-	}
 	sortResources(results)
-	return results, nil
+	return results
 }
 
-func printResults[T manager.NamedResource](
-	results []T,
+func printResults(
+	results []*kube.ResourceNode,
 	headerFunc func() []string,
-	rowFunc func(T) []string,
+	rowFunc func(node *kube.ResourceNode) []string,
 ) error {
 	switch getArgs.format {
 	case "pretty":
@@ -113,7 +109,7 @@ func printResults[T manager.NamedResource](
 	case "yaml":
 		for _, r := range results {
 			fmt.Println("---")
-			data, _ := yaml.Marshal(r)
+			data, _ := yaml.Marshal(r.Resource)
 			fmt.Println(string(data))
 		}
 		return nil

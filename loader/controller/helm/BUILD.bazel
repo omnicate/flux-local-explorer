@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "helm",
+    srcs = [
+        "controller.go",
+        "options.go",
+    ],
+    importpath = "github.com/omnicate/flx/loader/controller/helm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//loader",
+        "//loader/controller",
+        "@com_github_fluxcd_helm_controller_api//v2:api",
+        "@com_github_fluxcd_helm_controller_api//v2beta1",
+        "@com_github_fluxcd_helm_controller_api//v2beta2",
+        "@com_github_fluxcd_pkg_apis_meta//:meta",
+        "@com_github_fluxcd_pkg_chartutil//:chartutil",
+        "@com_github_go_logr_zerologr//:zerologr",
+        "@com_github_rs_zerolog//:zerolog",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)

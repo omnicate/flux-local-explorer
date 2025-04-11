@@ -6,9 +6,7 @@ import (
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/spf13/cobra"
 
-	"sigs.k8s.io/kustomize/kyaml/filesys"
-
-	"github.com/omnicate/flx/resource"
+	"github.com/omnicate/flx/loader/kube"
 )
 
 var getGitRepoCmd = &cobra.Command{
@@ -20,18 +18,15 @@ var getGitRepoCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		result, err := repoLoader.Load(
-			filesys.MakeFsOnDisk(),
-			rootArgs.fluxDir,
-			"flux-system",
+		if err := repoLoader.Run(); err != nil {
+			return err
+		}
+		results := repoLoader.ListWithKind(
+			"GitRepository",
+			getArgs.namespace,
+			getArgs.allNamespaces,
 		)
-		if err != nil {
-			return err
-		}
-		results, err := getResultsFromSeq(result.GitRepositories)
-		if err != nil {
-			return err
-		}
+		results = filterResults(results)
 		return printResults(results, gitRepoHeaders, gitRepoRows)
 	},
 }
@@ -54,7 +49,9 @@ func gitRepoHeaders() []string {
 	}...)
 }
 
-func gitRepoRows(gr *resource.GitRepository) []string {
+func gitRepoRows(rn *kube.ResourceNode) []string {
+	var gr sourcev1.GitRepository
+	rn.Resource.Unmarshal(&gr)
 	var row []string
 	if getArgs.allNamespaces {
 		row = append(row, gr.Namespace)
@@ -64,7 +61,7 @@ func gitRepoRows(gr *resource.GitRepository) []string {
 		gr.Spec.URL,
 		formatGitRepoReference(gr.Spec.Reference),
 		formatIncludes(gr.Spec.Include),
-		errOrEmpty(gr.Error),
+		errOrEmpty(rn.Error),
 	}...)
 }
 
