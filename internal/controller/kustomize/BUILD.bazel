@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kustomize",
+    srcs = ["controller.go"],
+    importpath = "github.com/omnicate/flx/internal/controller/kustomize",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//internal/controller",
+        "//internal/loader",
+        "@com_github_fluxcd_kustomize_controller_api//v1:api",
+        "@com_github_fluxcd_pkg_kustomize//:kustomize",
+        "@com_github_rs_zerolog//:zerolog",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)

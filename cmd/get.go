@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 
-	"github.com/omnicate/flx/loader"
+	"github.com/omnicate/flx/internal/loader"
 )
 
 type GetFlags struct {
@@ -20,8 +20,7 @@ type GetFlags struct {
 }
 
 var (
-	repoLoader *loader.Loader
-	getArgs    GetFlags
+	getArgs GetFlags
 )
 
 // getCmd represents the get command
@@ -55,16 +54,16 @@ func init() {
 	rootCmd.AddCommand(getCmd)
 }
 
-func sortResources[T loader.NamedResource](list []T) {
+func sortResources(list []*loader.ResourceNode) {
 	sort.Slice(list, func(i, j int) bool {
 		{
-			a, b := list[i].GetNamespace(), list[j].GetNamespace()
+			a, b := list[i].Resource.GetNamespace(), list[j].Resource.GetNamespace()
 			if a != b {
 				return a < b
 			}
 		}
 		{
-			a, b := list[i].GetName(), list[j].GetName()
+			a, b := list[i].Resource.GetName(), list[j].Resource.GetName()
 			if a != b {
 				return a < b
 			}
@@ -73,43 +72,39 @@ func sortResources[T loader.NamedResource](list []T) {
 	})
 }
 
-func getResultsFromSeq[T loader.NamedResource](
-	seq loader.ErrSeq[T],
-) ([]T, error) {
-	var results []T
-	if getArgs.namespace != "" && getArgs.name != "" {
-		ks, err := seq.Find(func(item T) bool {
-			ns, name := item.GetNamespace(), item.GetName()
-			return ns == getArgs.namespace && name == getArgs.name
-		})
-		if err != nil {
-			return nil, err
+func filterResults(
+	resources []*loader.ResourceNode,
+	filterName string,
+	filterNamespace string,
+	filterAllNamespaces bool,
+) []*loader.ResourceNode {
+	var results []*loader.ResourceNode
+
+	for _, res := range resources {
+		if filterAllNamespaces {
+			results = append(results, res)
+			continue
 		}
-		results = append(results, ks)
-	} else {
-		ks, err := seq.Filter(func(item T) bool {
-			if getArgs.allNamespaces {
-				return true
-			}
-			return getArgs.namespace == item.GetNamespace()
-		}).Collect()
-		if err != nil {
-			return nil, err
+		if ns := filterNamespace; ns != "" && res.Resource.GetNamespace() != ns {
+			continue
 		}
-		results = append(results, ks...)
-	}
-	if len(results) == 0 {
-		return nil, fmt.Errorf("no resources")
+		if name := filterName; name != "" && res.Resource.GetName() != name {
+			continue
+		}
+		results = append(results, res)
 	}
 	sortResources(results)
-	return results, nil
+	return results
 }
 
-func printResults[T loader.NamedResource](
-	results []T,
+func printResults(
+	results []*loader.ResourceNode,
 	headerFunc func() []string,
-	rowFunc func(T) []string,
+	rowFunc func(node *loader.ResourceNode) []string,
 ) error {
+	if len(results) == 0 {
+		return fmt.Errorf("no results")
+	}
 	switch getArgs.format {
 	case "pretty":
 		var rows [][]string
@@ -120,7 +115,7 @@ func printResults[T loader.NamedResource](
 	case "yaml":
 		for _, r := range results {
 			fmt.Println("---")
-			data, _ := yaml.Marshal(r)
+			data, _ := yaml.Marshal(r.Resource)
 			fmt.Println(string(data))
 		}
 		return nil

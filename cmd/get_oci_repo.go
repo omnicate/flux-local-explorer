@@ -4,8 +4,7 @@ import (
 	sourcev1b2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/spf13/cobra"
 
-	"github.com/omnicate/flx/loader"
-	"sigs.k8s.io/kustomize/kyaml/filesys"
+	"github.com/omnicate/flx/internal/loader"
 )
 
 var getOciRepoCmd = &cobra.Command{
@@ -17,15 +16,19 @@ var getOciRepoCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		seq := repoLoader.OCIRepositories(
-			filesys.MakeFsOnDisk(),
-			rootArgs.fluxDir,
-			"flux-system",
-		)
-		results, err := getResultsFromSeq(seq)
+		mgr, err := newManager(true)
 		if err != nil {
 			return err
 		}
+		if err := mgr.Run(); err != nil {
+			return err
+		}
+		results := mgr.ListWithKind(
+			"OCIRepository",
+			getArgs.namespace,
+			getArgs.allNamespaces,
+		)
+		results = filterResults(results, getArgs.name, getArgs.namespace, getArgs.allNamespaces)
 		return printResults(results, ociRepoHeaders, ociRepoRows)
 	},
 }
@@ -47,7 +50,10 @@ func ociRepoHeaders() []string {
 	}...)
 }
 
-func ociRepoRows(or *loader.OCIRepository) []string {
+func ociRepoRows(rn *loader.ResourceNode) []string {
+	var or sourcev1b2.OCIRepository
+	rn.Resource.Unmarshal(&or)
+
 	var row []string
 	if getArgs.allNamespaces {
 		row = append(row, or.Namespace)
@@ -56,7 +62,7 @@ func ociRepoRows(or *loader.OCIRepository) []string {
 		or.Name,
 		or.Spec.URL,
 		formatOciReference(or.Spec.Reference),
-		errOrEmpty(or.Error),
+		errOrEmpty(rn.Error),
 	}...)
 	return row
 }

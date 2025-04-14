@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,8 +15,15 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/omnicate/flx/loader"
+	ctrl "github.com/omnicate/flx/internal/controller"
+	"github.com/omnicate/flx/internal/controller/extsecret"
+	"github.com/omnicate/flx/internal/controller/git"
+	"github.com/omnicate/flx/internal/controller/helm"
+	"github.com/omnicate/flx/internal/controller/kustomize"
+	"github.com/omnicate/flx/internal/controller/oci"
+	"github.com/omnicate/flx/internal/loader"
 )
 
 type RootFlags struct {
@@ -33,6 +41,8 @@ type RootFlags struct {
 	verbose   bool
 	logFormat string
 	cacheDir  string
+
+	enabledControllers []string
 }
 
 var (
@@ -41,8 +51,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "flx",
-	Short: "Offline Flux companion.",
+	Use:          "flx",
+	Short:        "Offline Flux companion.",
+	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		level := zerolog.InfoLevel
 		if rootArgs.verbose {
@@ -57,6 +68,14 @@ var rootCmd = &cobra.Command{
 		}
 		logger = zerolog.New(output).Level(level).With().Timestamp().Logger()
 
+		// Ensure deps in path:
+		for _, bin := range []string{"git", "helm"} {
+			if _, err := exec.LookPath(bin); err != nil {
+				return fmt.Errorf("%s was not found in path: %v", bin, err)
+			}
+		}
+
+		// Get git remote
 		var err error
 		rootArgs.localRemote, err = repoURL(cmd.Flag("dir").Value.String())
 		if err != nil {
@@ -77,17 +96,6 @@ var rootCmd = &cobra.Command{
 			Str("branch", rootArgs.localBranch).
 			Msg("using local git repository")
 
-		opts := []loader.Option{
-			loader.WithLocalRepoRef(&loader.LocalGitRepository{
-				Remote: rootArgs.localRemote,
-				Path:   rootArgs.localPath,
-				Branch: rootArgs.localBranch,
-			}),
-			loader.WithLogger(logger),
-			loader.WithRepoCachePath(rootArgs.cacheDir),
-			loader.WithGitForceHTTPS(rootArgs.gitForceHTTPS),
-		}
-		repoLoader = loader.NewLoader(opts...)
 		return nil
 	},
 }
@@ -115,18 +123,16 @@ func init() {
 		cacheDir = filepath.Join(homeDir, ".flx")
 	}
 
-	rootCmd.PersistentFlags().StringVarP(
+	rootCmd.PersistentFlags().StringVar(
 		&rootArgs.cacheDir,
 		"cache-dir",
-		"",
 		cacheDir,
 		"cache location",
 	)
 
-	rootCmd.PersistentFlags().BoolVarP(
+	rootCmd.PersistentFlags().BoolVar(
 		&rootArgs.gitForceHTTPS,
 		"git-force-https",
-		"",
 		false,
 		"force git clone via https",
 	)
@@ -139,12 +145,18 @@ func init() {
 		"verbose logging",
 	)
 
-	rootCmd.PersistentFlags().StringVarP(
+	rootCmd.PersistentFlags().StringVar(
 		&rootArgs.logFormat,
 		"log-format",
-		"",
 		"pretty",
 		"log format to use (pretty, json)",
+	)
+
+	rootCmd.PersistentFlags().StringSliceVar(
+		&rootArgs.enabledControllers,
+		"controllers",
+		[]string{"ks", "git", "oci", "helm", "external-secrets"},
+		"controllers to enable",
 	)
 
 	cobra.OnInitialize(func() {
@@ -155,6 +167,73 @@ func init() {
 	})
 
 	viper.SetDefault("dir", ".")
+}
+
+func newManager(useLocal bool) (*loader.Manager, error) {
+	var replacements []*git.LocalReplace
+	if useLocal {
+		replacements = []*git.LocalReplace{
+			{
+				Remote: rootArgs.localRemote,
+				Path:   rootArgs.localPath,
+				Branch: rootArgs.localBranch,
+			},
+		}
+	}
+
+	var controllers []ctrl.Controller
+	if slices.Contains(rootArgs.enabledControllers, "git") {
+		logger.Debug().Msg("enabling git controller")
+		controllers = append(controllers, git.NewController(
+			logger.With().Str("controller", "git").Logger(),
+			git.Options{
+				CachePath: rootArgs.cacheDir,
+				UseHTTPS:  rootArgs.gitForceHTTPS,
+				Local:     replacements,
+			},
+		))
+	}
+	if slices.Contains(rootArgs.enabledControllers, "oci") {
+		logger.Debug().Msg("enabling oci controller")
+		controllers = append(controllers, oci.NewController(
+			logger.With().Str("controller", "oci").Logger(),
+			oci.Options{
+				CachePath: rootArgs.cacheDir,
+			},
+		))
+	}
+	if slices.Contains(rootArgs.enabledControllers, "ks") {
+		logger.Debug().Msg("enabling kustomize controller")
+		controllers = append(controllers, kustomize.NewController(
+			logger.With().Str("controller", "kustomize").Logger(),
+		))
+	}
+	if slices.Contains(rootArgs.enabledControllers, "helm") {
+		logger.Debug().Msg("enabling helm controller")
+		controllers = append(controllers, helm.NewController(
+			logger.With().Str("controller", "helm").Logger(),
+			helm.Options{
+				CachePath: rootArgs.cacheDir,
+			},
+		))
+	}
+	if slices.Contains(rootArgs.enabledControllers, "external-secrets") {
+		logger.Debug().Msg("enabling external-secrets controller")
+		controllers = append(controllers, extsecret.NewController(
+			logger.With().Str("controller", "external-secrets").Logger(),
+		))
+	}
+
+	repoLoader := loader.NewManager(controllers)
+	if err := repoLoader.Initialize(
+		filesys.MakeFsOnDisk(),
+		rootArgs.fluxDir,
+		"flux-system",
+	); err != nil {
+		return nil, err
+	}
+
+	return repoLoader, nil
 }
 
 func postInitCommands(commands []*cobra.Command) {
