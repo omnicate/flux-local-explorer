@@ -15,7 +15,7 @@ func init() {
 
 type Context interface {
 	// ClientSet for a subset of resource kinds.
-	ClientSet(kinds ...string) client.Client
+	ClientSet() client.Client
 	// GetAttachment for a specific resource.
 	GetAttachment(kind, namespace, name string) (any, bool)
 	// GetResource from the tree.

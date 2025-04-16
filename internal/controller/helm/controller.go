@@ -164,7 +164,7 @@ func (r *Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resu
 	values, err := chartutil.ChartValuesFromReferences(
 		context.Background(),
 		zerologr.New(&r.logger),
-		ctx.ClientSet("Secret", "ConfigMap"),
+		ctx.ClientSet(),
 		hr.Namespace,
 		hr.Spec.Values,
 		hr.Spec.ValuesFrom...,
@@ -180,38 +180,48 @@ func (r *Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resu
 	}
 	valuesMd5h := md5.Sum(data)
 	valuesHash := hex.EncodeToString(valuesMd5h[:])
-	valuesFile := filepath.Join(cachePath, "values-"+valuesHash+".yaml")
-	if _, err := os.Stat(valuesFile); os.IsNotExist(err) {
+
+	// Cache the result of `helm template` command.
+	templateCacheFile := filepath.Join(cachePath, "template-"+valuesHash+".yaml")
+	if _, err := os.Stat(templateCacheFile); os.IsNotExist(err) {
+		valuesFile := filepath.Join(cachePath, "values-"+valuesHash+".yaml")
 		if err := os.WriteFile(valuesFile, data, 0600); err != nil {
 			return nil, fmt.Errorf("writing values.yaml: %w", err)
 		}
+		var out bytes.Buffer
+		cmd := exec.Command(
+			"helm",
+			"template",
+			"-n", hr.Namespace,
+			"--name-template", hr.Name,
+			"-f", valuesFile,
+			filepath.Join(cachePath, filepath.Base(hr.Spec.Chart.Spec.Chart)),
+		)
+		r.logger.Debug().
+			Str("path", cachePath).
+			Str("name", hr.Name).
+			Str("cmd", cmd.String()).
+			Str("namespace", hr.Namespace).
+			Msg("templating helm chart")
+
+		cmd.Stdout = &out
+		cmd.Stderr = os.Stderr
+		cmd.Env = []string{}
+		if err := cmd.Run(); err != nil {
+			return nil, fmt.Errorf("helm template: %w", err)
+		}
+		if err := os.WriteFile(templateCacheFile, out.Bytes(), 0600); err != nil {
+			return nil, fmt.Errorf("writing helm template cache: %w", err)
+		}
 	}
 
-	// Run `helm template` command.
-	var out bytes.Buffer
-	cmd := exec.Command(
-		"helm",
-		"template",
-		"-n", hr.Namespace,
-		"--name-template", hr.Name,
-		"-f", valuesFile,
-		filepath.Join(cachePath, filepath.Base(hr.Spec.Chart.Spec.Chart)),
-	)
-	r.logger.Debug().
-		Str("path", cachePath).
-		Str("name", hr.Name).
-		Str("cmd", cmd.String()).
-		Str("namespace", hr.Namespace).
-		Msg("templating helm chart")
-
-	cmd.Stdout = &out
-	cmd.Stderr = os.Stderr
-	cmd.Env = []string{}
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("helm template: %w", err)
+	// Load the cache file
+	templateOutput, err := os.ReadFile(templateCacheFile)
+	if err != nil {
+		return nil, fmt.Errorf("reading helm template output: %w", err)
 	}
 
-	resources, err := loader.LoadBytes(out.Bytes())
+	resources, err := loader.LoadBytes(templateOutput)
 	if err != nil {
 		return nil, fmt.Errorf("loading resources from helm: %w", err)
 	}

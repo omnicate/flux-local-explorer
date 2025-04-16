@@ -10,6 +10,7 @@ go_library(
         "get_kustomization.go",
         "get_oci_repo.go",
         "root.go",
+        "stat.go",
     ],
     importpath = "github.com/omnicate/flx/cmd",
     visibility = ["//visibility:public"],

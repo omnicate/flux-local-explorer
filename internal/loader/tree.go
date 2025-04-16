@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/omnicate/flx/internal/controller"
 )
@@ -17,24 +18,28 @@ const (
 )
 
 type ResourceNode struct {
-	Status   ResourceStatus
+	// Status of this particular node/resource.
+	Status ResourceStatus
+	// Attempts taken to reconcile.
 	Attempts int
-	Error    error
-
-	// Resource this node contains.
+	// Error that occurred during reconciliation.
+	Error error
+	// Time it took to reconcile this resource.
+	Duration time.Duration
+	// Resource this node contains, or nil for the root.
 	Resource *controller.Resource
 	// Attachment set on this node.
 	Attachment any
-
 	// Children of this resource.
 	Children []*ResourceNode
 }
 
 var (
-	ErrStop    = errors.New("stop")
-	ErrStopAll = errors.New("stop all")
+	// ErrStop is used during Walk to stop recursing.
+	ErrStop = errors.New("stop")
 )
 
+// Walk the resource node recursively.
 func (n *ResourceNode) Walk(f func(node *ResourceNode) error) error {
 	err := f(n)
 	if errors.Is(err, ErrStop) {
@@ -53,16 +58,17 @@ func (n *ResourceNode) Walk(f func(node *ResourceNode) error) error {
 	return nil
 }
 
-func (n *ResourceNode) ListNodes(kind, namespace string, allNamespaces bool) []*ResourceNode {
-	flat := make([]*ResourceNode, 0)
-	n.Walk(func(node *ResourceNode) error {
+// ResourceNodes is a slice of ResourceNodes.
+type ResourceNodes []*ResourceNode
+
+// FlatByStatus returns a flat list of all resource nodes, that have a specific status.
+func (n *ResourceNode) FlatByStatus(status ResourceStatus) ResourceNodes {
+	flat := make(ResourceNodes, 0)
+	_ = n.Walk(func(node *ResourceNode) error {
 		if node.Resource == nil {
 			return nil
 		}
-		if node.Resource.GetKind() != kind {
-			return nil
-		}
-		if !allNamespaces && node.Resource.GetNamespace() != namespace {
+		if node.Status != status {
 			return nil
 		}
 		flat = append(flat, node)
@@ -71,6 +77,51 @@ func (n *ResourceNode) ListNodes(kind, namespace string, allNamespaces bool) []*
 	return flat
 }
 
+// Flat returns a flat list of all resource nodes, that have a resource attached.
+func (n *ResourceNode) Flat() ResourceNodes {
+	flat := make(ResourceNodes, 0)
+	_ = n.Walk(func(node *ResourceNode) error {
+		if node.Resource == nil {
+			return nil
+		}
+		flat = append(flat, node)
+		return nil
+	})
+	return flat
+}
+
+// FilterByKind returns only nodes that are of a particular kind.
+func (n ResourceNodes) FilterByKind(kind string) ResourceNodes {
+	out := make([]*ResourceNode, 0)
+	for i := range n {
+		res := n[i].Resource
+		if res == nil {
+			continue
+		}
+		if res.GetKind() == kind {
+			out = append(out, n[i])
+		}
+	}
+	return out
+}
+
+// FilterByNamespace returns only nodes in a particular namespace.
+func (n ResourceNodes) FilterByNamespace(ns string) ResourceNodes {
+	out := make([]*ResourceNode, 0)
+	for i := range n {
+		res := n[i].Resource
+		if res == nil {
+			continue
+		}
+		if res.GetNamespace() == ns {
+			out = append(out, n[i])
+		}
+	}
+	return out
+}
+
+// GetResources retrieves all resources that are children of this node, recursively.
+// Recursion is stopped when a `Kustomization` is encountered.
 func (n *ResourceNode) GetResources() []*ResourceNode {
 	// Always include the root.
 	flat := []*ResourceNode{n}
@@ -86,6 +137,7 @@ func (n *ResourceNode) GetResources() []*ResourceNode {
 	return flat
 }
 
+// Find a specific node in the ResourceNode.
 func (n *ResourceNode) Find(kind, namespace, name string) (*ResourceNode, bool) {
 	var found *ResourceNode
 	_ = n.Walk(func(node *ResourceNode) error {
@@ -111,6 +163,7 @@ func (n *ResourceNode) Find(kind, namespace, name string) (*ResourceNode, bool) 
 	return found, true
 }
 
+// AddResources to a node. Created resources will have StatusUnknown.
 func (n *ResourceNode) AddResources(res []*controller.Resource) {
 	for _, r := range res {
 		n.Children = append(n.Children, &ResourceNode{
@@ -120,6 +173,7 @@ func (n *ResourceNode) AddResources(res []*controller.Resource) {
 	}
 }
 
+// String representation of a resource node.
 func (n *ResourceNode) String() string {
 	return n.string(0)
 }
