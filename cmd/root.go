@@ -224,7 +224,10 @@ func newManager(useLocal bool) (*loader.Manager, error) {
 		))
 	}
 
-	repoLoader := loader.NewManager(controllers)
+	repoLoader := loader.NewManager(
+		logger,
+		controllers,
+	)
 	if err := repoLoader.Initialize(
 		filesys.MakeFsOnDisk(),
 		rootArgs.fluxDir,

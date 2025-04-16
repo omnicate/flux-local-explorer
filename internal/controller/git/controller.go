@@ -21,6 +21,8 @@ func init() {
 	_ = sourcev1.AddToScheme(ctrl.Scheme)
 }
 
+var _ ctrl.Controller = new(Controller)
+
 type Controller struct {
 	logger zerolog.Logger
 	opts   Options

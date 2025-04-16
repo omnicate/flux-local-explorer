@@ -1,13 +1,14 @@
 package loader
 
 import (
-	"context"
 	"fmt"
 	"runtime"
 	"sync"
+	"sync/atomic"
+	"time"
 
+	"github.com/rs/zerolog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/omnicate/flx/internal/controller"
@@ -16,12 +17,13 @@ import (
 const maxIterations = 4096
 
 type Manager struct {
+	logger      zerolog.Logger
 	controllers map[string][]controller.Controller
 	root        *ResourceNode
-	clientSet   client.Client
 }
 
 func NewManager(
+	logger zerolog.Logger,
 	controllers []controller.Controller,
 ) *Manager {
 	controllerMap := make(map[string][]controller.Controller)
@@ -32,11 +34,8 @@ func NewManager(
 		}
 	}
 	return &Manager{
+		logger:      logger,
 		controllers: controllerMap,
-		clientSet: fake.
-			NewClientBuilder().
-			WithScheme(controller.Scheme).
-			Build(),
 	}
 }
 
@@ -61,11 +60,22 @@ func (m *Manager) Initialize(
 }
 
 func (m *Manager) Run() error {
-	for range maxIterations {
+	total := time.Duration(0)
+	for i := range maxIterations {
+		start := time.Now()
 		n, err := m.runOnce()
 		if err != nil {
 			return err
 		}
+		total += time.Since(start)
+
+		m.logger.Debug().
+			Int("iteration", i).
+			Int("resources", n).
+			Str("took", time.Since(start).String()).
+			Str("total", total.String()).
+			Msg("reconciled resources")
+
 		if n == 0 {
 			return nil
 		}
@@ -73,197 +83,128 @@ func (m *Manager) Run() error {
 	return fmt.Errorf("max iterations reached")
 }
 
-func (m *Manager) runOnce() (int, error) {
-	var n int
+func (m *Manager) processNode(node *ResourceNode) bool {
+	kind := node.Resource.GetKind()
+	if node.Status == StatusCompleted || node.Status == StatusError {
+		return false
+	}
+	start := time.Now()
+	defer func() {
+		node.Duration = time.Since(start)
+	}()
+	controllers := m.controllers[kind]
+	if len(controllers) == 0 {
+		node.Status = StatusCompleted
+		return true
+	}
 
-	nodeChan := make(chan *ResourceNode, 16)
+	for _, ctrl := range controllers {
+
+		// Reconcile it:
+		result, err := ctrl.Reconcile(&Context{tree: m.root}, node.Resource)
+
+		// Error during reconciliation, try again.
+		if err != nil {
+			node.Error = err
+			node.Attempts += 1
+			if node.Attempts > 5 {
+				node.Status = StatusError
+			}
+			continue
+		}
+
+		// Reset node:
+		node.Error = nil
+		node.Status = StatusCompleted
+		node.Attachment = result.Attachment
+
+		// Never add a resource twice, even if a controller
+		// instructs us to.
+		for _, res := range result.Resources {
+			if _, ok := m.root.Find(
+				res.GetKind(),
+				res.GetNamespace(),
+				res.GetName(),
+			); ok {
+				continue
+			}
+			node.AddResources([]*controller.Resource{res})
+		}
+	}
+
+	// This resource was processed by at least one controller.
+	return true
+}
+
+// runOnce reconciles every resource
+func (m *Manager) runOnce() (int, error) {
+	nodes := m.root.FlatByStatus(StatusUnknown)
+	nodeChan := make(chan *ResourceNode)
 	go func() {
-		_ = m.root.Walk(func(node *ResourceNode) error {
+		for _, node := range nodes {
 			nodeChan <- node
-			return nil
-		})
+		}
 		close(nodeChan)
 	}()
 
 	// TODO: nothing here is thread safe.
 	//  This will crash eventually.
-	var threads = runtime.NumCPU() / 2
+	var threads = runtime.NumCPU()
 	var wg sync.WaitGroup
+	var n uint32
 	for range threads {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for node := range nodeChan {
-				if node.Resource == nil {
-					continue
-				}
-				if node.Status == StatusCompleted {
-					continue
-				}
-				if node.Status == StatusError {
-					continue
-				}
-				var wasHandled bool
-				for _, ctrl := range m.controllers[node.Resource.GetKind()] {
-
-					// A resource was handled. We have to keep reconciling.
-					n += 1
-					wasHandled = true
-
-					// Reconcile it:
-					result, err := ctrl.Reconcile(m, node.Resource)
-
-					// Error during reconciliation, try again.
-					if err != nil {
-						node.Error = err
-						node.Attempts += 1
-						if node.Attempts > 5 {
-							node.Status = StatusError
-						}
-						continue
-					}
-
-					// Reset node:
-					node.Error = nil
-					node.Status = StatusCompleted
-					node.Attachment = result.Attachment
-
-					// Never add a resource twice, even if a controler
-					// instructs us to.
-					for _, res := range result.Resources {
-						if _, ok := m.root.Find(
-							res.GetKind(),
-							res.GetNamespace(),
-							res.GetName(),
-						); ok {
-							continue
-						}
-						node.AddResources([]*controller.Resource{res})
-					}
-				}
-
-				// A resource which was not handled by any of our controllers
-				// is treated as "Completed". This is a leaf node.
-				if !wasHandled {
-					node.Status = StatusCompleted
-				}
-
-				// Completed nodes are added to the client set
-				if node.Status == StatusCompleted {
-					kind := node.Resource.GetKind()
-
-					// We're only tracking configMaps and secrets. All
-					// other information is already part of the resource tree.
-					if kind == "ConfigMap" || kind == "Secret" {
-						obj, err := node.Resource.Unstructured()
-						if err == nil {
-							_ = m.clientSet.Create(context.Background(), obj)
-						}
-					}
+				wasProcessed := m.processNode(node)
+				if wasProcessed {
+					atomic.AddUint32(&n, 1)
 				}
 			}
 		}()
 	}
 	wg.Wait()
 
-	// TODO: Uncomment this if above keeps crashing:
-	//_ = m.root.Walk(func(node *ResourceNode) error {
-	//	if node.Resource == nil {
-	//		return nil
-	//	}
-	//	if node.Status == StatusCompleted {
-	//		return nil
-	//	}
-	//	if node.Status == StatusError {
-	//		return nil
-	//	}
-	//
-	//	var wasHandled bool
-	//	for _, ctrl := range m.controllers[node.Resource.GetKind()] {
-	//
-	//		result, err := ctrl.Reconcile(m, node.Resource)
-	//		if errors.Is(err, controller.ErrSkip) {
-	//			continue
-	//		}
-	//
-	//		// A resource was handled. We have to keep reconciling.
-	//		n += 1
-	//		wasHandled = true
-	//
-	//		// Error during reconciliation, try again.
-	//		if err != nil {
-	//			node.Error = err
-	//			node.Attempts += 1
-	//			if node.Attempts > 5 {
-	//				node.Status = StatusError
-	//			}
-	//			continue
-	//		}
-	//
-	//		// Reset node:
-	//		node.Error = nil
-	//		node.Status = StatusCompleted
-	//		node.Attachment = result.Attachment
-	//
-	//		// Never add a resource twice, even if a controler
-	//		// instructs us to.
-	//		for _, res := range result.Resources {
-	//			if _, ok := m.root.Find(
-	//				res.GetKind(),
-	//				res.GetNamespace(),
-	//				res.GetName(),
-	//			); ok {
-	//				continue
-	//			}
-	//			node.AddResources([]*controller.Resource{res})
-	//		}
-	//	}
-	//
-	//	// A resource which was not handled by any of our controllers
-	//	// is treated as "Completed". This is a leaf node.
-	//	if !wasHandled {
-	//		node.Status = StatusCompleted
-	//	}
-	//
-	//	// All completed nodes are added to the client set
-	//	if node.Status == StatusCompleted {
-	//		kind := node.Resource.GetKind()
-	//
-	//		// We're only tracking configMaps and secrets. All
-	//		// other information is already part of the resource tree.
-	//		if kind == "ConfigMap" || kind == "Secret" {
-	//			obj, err := node.Resource.Unstructured()
-	//			if err == nil {
-	//				_ = m.clientSet.Create(context.Background(), obj)
-	//			}
-	//		}
-	//	}
-	//	return nil
-	//})
-
-	return n, nil
+	return int(n), nil
 }
 
-func (m *Manager) GetAttachment(kind, namespace, name string) (any, bool) {
-	found, ok := m.root.Find(kind, namespace, name)
+// AllNodes returns a flat representation of all resource nodes encountered during Run.
+func (m *Manager) AllNodes() []*ResourceNode {
+	return m.root.Flat()
+}
+
+// ListWithKind retrieves resources that are of a specific kind.
+func (m *Manager) ListWithKind(kind, namespace string, allNamespaces bool) []*ResourceNode {
+	result := m.root.Flat().FilterByKind(kind)
+	if allNamespaces {
+		return result
+	}
+	return result.FilterByNamespace(namespace)
+}
+
+var _ controller.Context = new(Context)
+
+type Context struct {
+	tree *ResourceNode
+}
+
+func (m *Context) GetAttachment(kind, namespace, name string) (any, bool) {
+	found, ok := m.tree.Find(kind, namespace, name)
 	if !ok {
 		return nil, false
 	}
 	return found.Attachment, found.Attachment != nil
 }
 
-func (m *Manager) GetResource(kind, namespace, name string) (*controller.Resource, bool) {
-	found, ok := m.root.Find(kind, namespace, name)
+func (m *Context) GetResource(kind, namespace, name string) (*controller.Resource, bool) {
+	found, ok := m.tree.Find(kind, namespace, name)
 	if !ok {
 		return nil, false
 	}
 	return found.Resource, found.Resource != nil
 }
 
-func (m *Manager) ClientSet(kinds ...string) client.Client {
-	return m.clientSet
-}
-
-func (m *Manager) ListWithKind(kind, namespace string, allNamespaces bool) []*ResourceNode {
-	return m.root.ListNodes(kind, namespace, allNamespaces)
+func (m *Context) ClientSet() client.Client {
+	return NewClientSet(controller.Scheme, m.tree)
 }

@@ -18,6 +18,8 @@ func init() {
 	_ = kustomizev1.AddToScheme(ctrl.Scheme)
 }
 
+var _ ctrl.Controller = new(Controller)
+
 type Controller struct {
 	logger zerolog.Logger
 }
@@ -76,7 +78,7 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal Kustomization: %v", err)
 		}
-		clientSet := ctx.ClientSet("Secret", "ConfigMap")
+		clientSet := ctx.ClientSet()
 		for i, res := range resources {
 			newRes, err := kustomize.SubstituteVariables(
 				context.Background(),
