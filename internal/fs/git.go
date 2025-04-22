@@ -17,6 +17,8 @@ import (
 
 var _ FileSystem = new(gitFileSystem)
 
+// gitFileSystem provides access to files of a local git repository, pinned at
+// a specific revision (commit, branch, tag).
 type gitFileSystem struct {
 	readOnlyFileSystem
 
@@ -26,6 +28,9 @@ type gitFileSystem struct {
 	rev      string
 }
 
+// Git returns a new git file system, where repoPath points to a local git repository,
+// remoteURL is the remote's URL and rev a valid git revision. Clones the repo from remote URL
+// if repoPath doesn't exist. Pulls the repository if a specific revision cannot be resolved.
 func Git(repoPath, remoteURL, rev string) (FileSystem, error) {
 	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
 		cmd := exec.Command("git", "clone", remoteURL, repoPath)
@@ -157,53 +162,4 @@ func (g *gitFileSystem) ReadFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	return content, nil
-}
-
-type gitFileNode struct {
-	name     string
-	hash     string
-	isDir    bool
-	children []*gitFileNode
-}
-
-func (n *gitFileNode) insert(path, hash string) {
-	path = filepath.Clean(path)
-	dir, nextDir, ok := strings.Cut(path, string(os.PathSeparator))
-	if !ok {
-		n.children = append(n.children, &gitFileNode{
-			name:  dir,
-			hash:  hash,
-			isDir: false,
-		})
-		return
-	}
-	// Try to insert into children:
-	for _, c := range n.children {
-		if c.name == dir {
-			c.insert(nextDir, hash)
-			return
-		}
-	}
-	// Could not find place to insert:
-	child := &gitFileNode{
-		name:     dir,
-		isDir:    true,
-		children: nil,
-	}
-	child.insert(nextDir, hash)
-	n.children = append(n.children, child)
-}
-
-func (n *gitFileNode) get(path string) (*gitFileNode, bool) {
-	path = filepath.Clean(path)
-	dir, nextDir, ok := strings.Cut(path, string(os.PathSeparator))
-	for _, c := range n.children {
-		if c.name == dir {
-			if !ok {
-				return c, true
-			}
-			return c.get(nextDir)
-		}
-	}
-	return nil, false
 }

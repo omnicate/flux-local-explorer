@@ -16,12 +16,14 @@ import (
 
 const maxIterations = 4096
 
+// Manager runs controllers, builds and queries the resource tree.
 type Manager struct {
 	logger      zerolog.Logger
 	controllers map[string][]controller.Controller
 	root        *ResourceNode
 }
 
+// NewManager from a slice of controllers.
 func NewManager(
 	logger zerolog.Logger,
 	controllers []controller.Controller,
@@ -39,6 +41,7 @@ func NewManager(
 	}
 }
 
+// Initialize the resource tree by loading some resources.
 func (m *Manager) Initialize(
 	fs filesys.FileSystem,
 	path string,
@@ -59,6 +62,8 @@ func (m *Manager) Initialize(
 	return nil
 }
 
+// Run the manager until completion. Reconciliation is finished if no more resources are created or all controllers
+// report errors that could not be resolved.
 func (m *Manager) Run() error {
 	total := time.Duration(0)
 	for i := range maxIterations {
@@ -136,7 +141,7 @@ func (m *Manager) processNode(node *ResourceNode) bool {
 	return true
 }
 
-// runOnce reconciles every resource
+// runOnce reconciles every resource once by calling controllers and adding to the resource tree.
 func (m *Manager) runOnce() (int, error) {
 	nodes := m.root.FlatByStatus(StatusUnknown)
 	nodeChan := make(chan *ResourceNode)
