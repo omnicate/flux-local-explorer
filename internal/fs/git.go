@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -21,6 +22,9 @@ var _ FileSystem = new(gitFileSystem)
 // a specific revision (commit, branch, tag).
 type gitFileSystem struct {
 	readOnlyFileSystem
+
+	// object.Tree must be protected
+	mu sync.Mutex
 
 	repo     *git.Repository
 	tree     *object.Tree
@@ -105,6 +109,8 @@ func (g *gitFileSystem) getTreeEntry(tree *object.Tree, path string) (object.Tre
 }
 
 func (g *gitFileSystem) IsDir(path string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	entry, ok := g.getTreeEntry(g.tree, path)
 	if !ok {
 		return false
@@ -113,6 +119,8 @@ func (g *gitFileSystem) IsDir(path string) bool {
 }
 
 func (g *gitFileSystem) ReadDir(path string) ([]string, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	entry, ok := g.getTreeEntry(g.tree, path)
 	if !ok {
 		return nil, fmt.Errorf("dir does not exist: %s", path)
@@ -132,11 +140,15 @@ func (g *gitFileSystem) ReadDir(path string) ([]string, error) {
 }
 
 func (g *gitFileSystem) Exists(path string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	_, ok := g.getTreeEntry(g.tree, path)
 	return ok
 }
 
 func (g *gitFileSystem) ReadFile(path string) ([]byte, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	entry, ok := g.getTreeEntry(g.tree, path)
 	if !ok {
 		return nil, fmt.Errorf("file does not exist: %s", path)
