@@ -17,6 +17,7 @@ var kustomizer = krusty.MakeKustomizer(&krusty.Options{
 	PluginConfig:     kustypes.DisabledPluginConfig(),
 })
 
+// LoadPath loads all resources under path from fs recursively.
 func LoadPath(
 	fs filesys.FileSystem,
 	path string,

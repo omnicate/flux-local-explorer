@@ -2,13 +2,7 @@ module github.com/omnicate/flx
 
 go 1.24.1
 
-// replace (
-// 	sigs.k8s.io/kustomize/api => ./lib/kustomize/api
-// 	sigs.k8s.io/kustomize/kyaml => ./lib/kustomize/kyaml
-// )
-
 require (
-	codeberg.org/h7c/go-diff v0.1.0
 	github.com/external-secrets/external-secrets v0.15.1
 	github.com/fluxcd/flux2/v2 v2.5.1
 	github.com/fluxcd/helm-controller/api v1.2.0
@@ -20,14 +14,8 @@ require (
 	github.com/fluxcd/source-controller/api v1.5.0
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/go-logr/zerologr v1.2.3
-	github.com/gonvenience/ytbx v1.4.6
-	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.3
-	github.com/homeport/dyff v1.10.1
-	github.com/logrusorgru/aurora v2.0.3+incompatible
-	github.com/r3labs/diff/v3 v3.0.1
 	github.com/rs/zerolog v1.34.0
-	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1
@@ -77,7 +65,6 @@ require (
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
-	github.com/fatih/color v1.18.0 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.6.0 // indirect
 	github.com/fluxcd/pkg/apis/kustomize v1.9.0 // indirect
 	github.com/fluxcd/pkg/envsubst v1.3.0 // indirect
@@ -103,11 +90,14 @@ require (
 	github.com/gonvenience/neat v1.3.15 // indirect
 	github.com/gonvenience/term v1.0.3 // indirect
 	github.com/gonvenience/text v1.0.8 // indirect
+	github.com/gonvenience/ytbx v1.4.6 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/homeport/dyff v1.10.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
@@ -144,6 +134,7 @@ require (
 	github.com/prometheus/procfs v0.16.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
+	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
@@ -153,8 +144,6 @@ require (
 	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
 	github.com/vbatts/tar-split v0.11.6 // indirect
 	github.com/virtuald/go-ordered-json v0.0.0-20170621173500-b18e6e673d74 // indirect
-	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
-	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
