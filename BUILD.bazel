@@ -15,6 +15,6 @@ go_binary(
     name = "flx",
     embed = [":flx_lib"],
     visibility = ["//visibility:public"],
-    pure = "on",
     gotags = ["purego"],
+    pure = "on",  # disable CGO
 )
