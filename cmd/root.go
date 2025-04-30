@@ -76,18 +76,41 @@ var rootCmd = &cobra.Command{
 
 		// Get git remote
 		for _, localPath := range append(rootArgs.localPaths, cmd.Flag("dir").Value.String()) {
-			remote, err := repoURL(localPath)
-			if err != nil {
-				return err
+			var remote, topLevelPath, defaultBranch string
+			if strings.Contains(localPath, "=") {
+				keyVals := strings.Split(localPath, ",")
+				for _, kv := range keyVals {
+					key, value, ok := strings.Cut(kv, "=")
+					if ok {
+						switch key {
+						case "path":
+							topLevelPath = value
+						case "remote":
+							remote = value
+						case "branch":
+							defaultBranch = value
+						}
+					}
+				}
+			} else {
+				var err error
+				remote, err = repoURL(localPath)
+				if err != nil {
+					return err
+				}
+				topLevelPath, err = repoTopLevel(localPath)
+				if err != nil {
+					return err
+				}
+				defaultBranch, err = repoDefaultBranch(localPath)
+				if err != nil {
+					return fmt.Errorf("failed to determine default branch: %v", err)
+				}
 			}
-			topLevelPath, err := repoTopLevel(localPath)
-			if err != nil {
-				return err
+			if remote == "" || topLevelPath == "" || defaultBranch == "" {
+				return fmt.Errorf("invalid remote, path or branch for %s", localPath)
 			}
-			defaultBranch, err := repoDefaultBranch(localPath)
-			if err != nil {
-				return fmt.Errorf("failed to determine default branch: %v", err)
-			}
+
 			rootArgs.localRepos = append(rootArgs.localRepos, &git.LocalReplace{
 				Remote: remote,
 				Path:   topLevelPath,
@@ -134,7 +157,7 @@ func init() {
 		"cache location",
 	)
 
-	rootCmd.PersistentFlags().StringSliceVarP(
+	rootCmd.PersistentFlags().StringArrayVarP(
 		&rootArgs.localPaths,
 		"local",
 		"L",
