@@ -53,6 +53,9 @@ func (d Diff) PrettyDiffAll() (string, error) {
 		if err != nil {
 			return "", err
 		}
+		if diff == "" {
+			continue
+		}
 		changed[res] = diff
 	}
 
@@ -135,7 +138,7 @@ func (d Diff) diffResources(base, now *ctrl.Resource) (string, error) {
 	if err := cmd.Run(); err != nil {
 		return "", err
 	}
-	return out.String(), nil
+	return strings.TrimSpace(out.String()), nil
 }
 
 func resourceKey(r *ctrl.Resource) string {

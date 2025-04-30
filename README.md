@@ -17,6 +17,16 @@ out specific references (commits, branches, tags), runs `kustomize` and performs
 - source.toolkit.fluxcd.io/v1/GitRepository
 - source.toolkit.fluxcd.io/v1beta2/OCIRepository
 
+## Working across multiple repositories
+
+By default, flx only treats the git repo under "FLX_DIR" (entrypoint) as a local repository. Changes to other included
+repositories are not computed correctly during building or diffing. To tell flx to use a additional local file systems 
+rather than cloned git repositories, use the `-L` or `--local` flag:
+
+```shell
+flx -L path/to/k8s-library -L path/to/other-library get ks -n test
+```
+
 ## Installation
 
 ```shell

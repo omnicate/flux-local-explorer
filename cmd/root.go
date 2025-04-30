@@ -30,9 +30,8 @@ type RootFlags struct {
 	fluxDir string
 
 	// Local working repo:
-	localRemote string
-	localPath   string
-	localBranch string
+	localPaths []string
+	localRepos []*git.LocalReplace
 
 	// Git options
 	gitForceHTTPS bool
@@ -76,25 +75,30 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Get git remote
-		var err error
-		rootArgs.localRemote, err = repoURL(cmd.Flag("dir").Value.String())
-		if err != nil {
-			return err
+		for _, localPath := range append(rootArgs.localPaths, cmd.Flag("dir").Value.String()) {
+			remote, err := repoURL(localPath)
+			if err != nil {
+				return err
+			}
+			topLevelPath, err := repoTopLevel(localPath)
+			if err != nil {
+				return err
+			}
+			defaultBranch, err := repoDefaultBranch(localPath)
+			if err != nil {
+				return fmt.Errorf("failed to determine default branch: %v", err)
+			}
+			rootArgs.localRepos = append(rootArgs.localRepos, &git.LocalReplace{
+				Remote: remote,
+				Path:   topLevelPath,
+				Branch: defaultBranch,
+			})
+			logger.Debug().
+				Str("remote", remote).
+				Str("path", topLevelPath).
+				Str("branch", defaultBranch).
+				Msg("using local git repository")
 		}
-		rootArgs.localPath, err = repoTopLevel(cmd.Flag("dir").Value.String())
-		if err != nil {
-			return err
-		}
-		rootArgs.localBranch, err = repoDefaultBranch(cmd.Flag("dir").Value.String())
-		if err != nil {
-			return fmt.Errorf("failed to determine default branch: %v", err)
-		}
-
-		logger.Debug().
-			Str("remote", rootArgs.localRemote).
-			Str("path", rootArgs.localPath).
-			Str("branch", rootArgs.localBranch).
-			Msg("using local git repository")
 
 		return nil
 	},
@@ -128,6 +132,14 @@ func init() {
 		"cache-dir",
 		cacheDir,
 		"cache location",
+	)
+
+	rootCmd.PersistentFlags().StringSliceVarP(
+		&rootArgs.localPaths,
+		"local",
+		"L",
+		[]string{},
+		"paths to local git repository overrides",
 	)
 
 	rootCmd.PersistentFlags().BoolVar(
@@ -172,13 +184,7 @@ func init() {
 func newManager(useLocal bool) (*loader.Manager, error) {
 	var replacements []*git.LocalReplace
 	if useLocal {
-		replacements = []*git.LocalReplace{
-			{
-				Remote: rootArgs.localRemote,
-				Path:   rootArgs.localPath,
-				Branch: rootArgs.localBranch,
-			},
-		}
+		replacements = rootArgs.localRepos
 	}
 
 	var controllers []ctrl.Controller
