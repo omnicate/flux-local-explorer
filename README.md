@@ -27,6 +27,20 @@ rather than cloned git repositories, use the `-L` or `--local` flag:
 flx -L path/to/k8s-library -L path/to/other-library get ks -n test
 ```
 
+This will determine default branch, top level repo path and remote URL from the path automatically.
+
+Or, to specify includes with fine control (needed when working with a fork):
+
+```shell
+flx -L "remote=ssh://git@github.com/test/k8s-library.git,branch=master,path=test/k8s-library" get ks -n test -v
+[..]
+2025-04-30T12:45:54+02:00 DBG using local git repository branch=master pathpath=test/k8s-library remote=ssh://git@github.com/test/k8s-library.git
+[..]
+```
+
+All references to git repositories `remote` on branch `master` will be replaced by content of `test/k8s-library`.
+This is useful when working on a local fork that doesn't have the "correct" remote. 
+
 ## Installation
 
 ```shell
