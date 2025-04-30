@@ -11,6 +11,7 @@ go_library(
         "get_oci_repo.go",
         "root.go",
         "stat.go",
+        "version.go",
     ],
     importpath = "github.com/omnicate/flx/cmd",
     visibility = ["//visibility:public"],
@@ -34,4 +35,7 @@ go_library(
         "@io_k8s_sigs_kustomize_kyaml//filesys",
         "@io_k8s_sigs_yaml//:yaml",
     ],
+    x_defs = {
+        "Version": "{STABLE_STAMP_VERSION}",
+    },
 )
