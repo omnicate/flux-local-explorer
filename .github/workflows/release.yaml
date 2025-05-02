@@ -1,0 +1,38 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+          external-cache: true
+      - name: Build
+        run: |
+          for arch in darwin_arm64; do
+            echo "Building flx_${arch} ${{ github.ref_name }}"
+            # Cross compile FLX and injection version string.
+            bazel build \
+              --platforms=@rules_go//go/toolchain:${arch} \
+              --stamp \
+              --workspace_status_command="echo STABLE_STAMP_VERSION ${{ github.ref_name }}" \
+              //:flx
+            echo "Creating flx_${arch}.tar.gz"
+            tar -czvf flx_${arch}.tar.gz -C bazel-bin/flx_/ flx
+          done
+      - name: Release
+        uses: ncipollo/release-action@v1
+        with:
+          name: Version ${{ github.ref_name }}
+          artifacts: "*.tar.gz"
