@@ -31,7 +31,6 @@ type RootFlags struct {
 
 	// Local working repo:
 	localPaths []string
-	localRepos []*git.LocalReplace
 
 	// Git options
 	gitForceHTTPS bool
@@ -67,62 +66,6 @@ var rootCmd = &cobra.Command{
 		}
 		logger = zerolog.New(output).Level(level).With().Timestamp().Logger()
 
-		// Ensure deps in path:
-		for _, bin := range []string{"git", "helm"} {
-			if _, err := exec.LookPath(bin); err != nil {
-				return fmt.Errorf("%s was not found in path: %v", bin, err)
-			}
-		}
-
-		// Get git remote
-		for _, localPath := range append(rootArgs.localPaths, cmd.Flag("dir").Value.String()) {
-			var remote, topLevelPath, defaultBranch string
-			if strings.Contains(localPath, "=") {
-				keyVals := strings.Split(localPath, ",")
-				for _, kv := range keyVals {
-					key, value, ok := strings.Cut(kv, "=")
-					if ok {
-						switch key {
-						case "path":
-							topLevelPath = value
-						case "remote":
-							remote = value
-						case "branch":
-							defaultBranch = value
-						}
-					}
-				}
-			} else {
-				var err error
-				remote, err = repoURL(localPath)
-				if err != nil {
-					return err
-				}
-				topLevelPath, err = repoTopLevel(localPath)
-				if err != nil {
-					return err
-				}
-				defaultBranch, err = repoDefaultBranch(localPath)
-				if err != nil {
-					return fmt.Errorf("failed to determine default branch: %v", err)
-				}
-			}
-			if remote == "" || topLevelPath == "" || defaultBranch == "" {
-				return fmt.Errorf("invalid remote, path or branch for %s", localPath)
-			}
-
-			rootArgs.localRepos = append(rootArgs.localRepos, &git.LocalReplace{
-				Remote: remote,
-				Path:   topLevelPath,
-				Branch: defaultBranch,
-			})
-			logger.Debug().
-				Str("remote", remote).
-				Str("path", topLevelPath).
-				Str("branch", defaultBranch).
-				Msg("using local git repository")
-		}
-
 		return nil
 	},
 }
@@ -130,6 +73,7 @@ var rootCmd = &cobra.Command{
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }
@@ -205,9 +149,75 @@ func init() {
 }
 
 func newManager(useLocal bool) (*loader.Manager, error) {
-	var replacements []*git.LocalReplace
+	// Ensure deps in path:
+	for _, bin := range []string{"git", "helm"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			return nil, fmt.Errorf("%s was not found in path: %v", bin, err)
+		}
+	}
+
+	if rootArgs.fluxDir == "" {
+		return nil, fmt.Errorf("flux entrypoint directory must be set")
+	} else {
+		stat, err := os.Stat(rootArgs.fluxDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to stat entrypoint: %w", err)
+		}
+		if !stat.IsDir() {
+			return nil, fmt.Errorf("flux entrypoint %s is not a directory", rootArgs.fluxDir)
+		}
+	}
+
+	// Build using local repositories:
+	var localRepos []*git.LocalReplace
 	if useLocal {
-		replacements = rootArgs.localRepos
+		for _, localPath := range append(rootArgs.localPaths, rootArgs.fluxDir) {
+			var remote, topLevelPath, defaultBranch string
+			if strings.Contains(localPath, "=") {
+				keyVals := strings.Split(localPath, ",")
+				for _, kv := range keyVals {
+					key, value, ok := strings.Cut(kv, "=")
+					if ok {
+						switch key {
+						case "path":
+							topLevelPath = value
+						case "remote":
+							remote = value
+						case "branch":
+							defaultBranch = value
+						}
+					}
+				}
+			} else {
+				var err error
+				remote, err = repoURL(localPath)
+				if err != nil {
+					return nil, fmt.Errorf("could not determine remote URL: %v", err)
+				}
+				topLevelPath, err = repoTopLevel(localPath)
+				if err != nil {
+					return nil, fmt.Errorf("could not determine top-level path: %v", err)
+				}
+				defaultBranch, err = repoDefaultBranch(localPath)
+				if err != nil {
+					return nil, fmt.Errorf("failed to determine default branch: %v", err)
+				}
+			}
+			if remote == "" || topLevelPath == "" || defaultBranch == "" {
+				return nil, fmt.Errorf("invalid remote, path or branch for %s", localPath)
+			}
+
+			localRepos = append(localRepos, &git.LocalReplace{
+				Remote: remote,
+				Path:   topLevelPath,
+				Branch: defaultBranch,
+			})
+			logger.Debug().
+				Str("remote", remote).
+				Str("path", topLevelPath).
+				Str("branch", defaultBranch).
+				Msg("using local git repository")
+		}
 	}
 
 	var controllers []ctrl.Controller
@@ -218,7 +228,7 @@ func newManager(useLocal bool) (*loader.Manager, error) {
 			git.Options{
 				CachePath: rootArgs.cacheDir,
 				UseHTTPS:  rootArgs.gitForceHTTPS,
-				Local:     replacements,
+				Local:     localRepos,
 			},
 		))
 	}
