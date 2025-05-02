@@ -11,6 +11,12 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+      - name: Update CHANGELOG
+        id: changelog
+        uses: requarks/changelog-action@v1
+        with:
+          token: ${{ github.token }}
+          tag: ${{ github.ref_name }}
       - name: Setup Bazel
         uses: bazel-contrib/setup-bazel@0.14.0
         with:
@@ -20,7 +26,7 @@ jobs:
           external-cache: true
       - name: Build
         run: |
-          for arch in darwin_arm64; do
+          for arch in darwin_arm64 darwin_amd64 linux_arm64 linux_amd64; do
             echo "Building flx_${arch} ${{ github.ref_name }}"
             # Cross compile FLX and injection version string.
             bazel build \
@@ -34,5 +40,9 @@ jobs:
       - name: Release
         uses: ncipollo/release-action@v1
         with:
-          name: Version ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           artifacts: "*.tar.gz"
+          makeLatest: 'true'
+          allowUpdates: true
+          draft: false
+          body: ${{ steps.changelog.outputs.changes }}
