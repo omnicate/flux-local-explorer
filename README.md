@@ -17,6 +17,12 @@ out specific references (commits, branches, tags), runs `kustomize` and performs
 
 See [Releases](https://github.com/omnicate/flx/releases).
 
+```shell
+$ gh release download -R omnicate/flx v0.1.4 -p "flx_darwin_arm64.tar.gz"
+$ tar -xvzf flx_darwin_arm64.tar.gz
+$ cp flx /usr/bin/flx 
+```
+
 Flx requires `helm` and `git` to be available in your path.
 Optionally, [dyff](https://github.com/homeport/dyff) is recommended for diffing k8s resource sets,
 unless you want to use some other diff utility.
