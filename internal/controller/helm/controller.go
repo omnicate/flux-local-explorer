@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -127,13 +128,21 @@ func (r *Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resu
 	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
 		var cmd *exec.Cmd
 		if repo.Spec.Type == "oci" {
+			repoURL, err := url.Parse(repo.Spec.URL)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse helm repository URL: %w", err)
+			}
+			chartUrl, err := repoURL.Parse(hr.Spec.Chart.Spec.Chart)
+			if err != nil {
+				return nil, fmt.Errorf("failed to chart URL: %w", err)
+			}
 			cmd = exec.Command(
 				"helm",
 				"pull",
 				"--version", hr.Spec.Chart.Spec.Version,
 				"--untar",
 				"--untardir", cachePath,
-				repo.Spec.URL+"/"+hr.Spec.Chart.Spec.Chart,
+				chartUrl.String(),
 			)
 		} else {
 			cmd = exec.Command(
