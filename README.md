@@ -29,19 +29,132 @@ unless you want to use some other diff utility.
 
 ## Supported resources
 
-- kustomize.toolkit.fluxcd.io/v1/Kustomization
+FLX splits up functionality into [controllers](tree/main/internal/controller). Each controller handles certain resource
+kinds (and versions). The following is an overview of the supported resources:
+
+### Git controller:
+
 - source.toolkit.fluxcd.io/v1/GitRepository
+
+### OCI controller:
+
 - source.toolkit.fluxcd.io/v1beta2/OCIRepository
+
+### Kustomization controller:
+
+- kustomize.toolkit.fluxcd.io/v1/Kustomization
+
+### Helm controller:
+
 - source.toolkit.fluxcd.io/v1/HelmRepository
+- source.toolkit.fluxcd.io/v1beta1/HelmRepository
+- source.toolkit.fluxcd.io/v1beta2/HelmRepository
 - helm.toolkit.fluxcd.io/v2/HelmRelease
+- helm.toolkit.fluxcd.io/v2beta1/HelmRelease
+- helm.toolkit.fluxcd.io/v2beta2/HelmRelease
+
+### External secrets controller:
+
 - external-secrets.io/v1beta1/ExternalSecret
 
+This controller creates secrets from `ExternalSecret` resources.
+
+
 And possibly also other versions of the resources.
+
+# Usage
+
+```shell
+$ flx version
+Version: development
+
+$ flx -h
+  Offline Flux companion.
+
+Usage:
+  flx [command]
+
+Available Commands:
+  completion  Generate the autocompletion script for the specified shell
+  diff        Diff two flux clusters
+  get         Retrieve resources
+  help        Help about any command
+  stat        Flux Kustomization resources (ks)
+  version     Prints the version of flx
+
+Flags:
+  --cache-dir string      cache location (default "/Users/juliusmh/.flx")
+  --controllers strings   controllers to enable (default [ks,git,oci,helm,external-secrets])
+  -C, --dir string            git repository tracked by flux
+  --git-force-https       force git clone via https
+  -h, --help                  help for flx
+  -L, --local stringArray     paths to local git repository overrides
+  --log-format string     log format to use (pretty, json) (default "pretty")
+  -v, --verbose               verbose logging
+
+  Use "flx [command] --help" for more information about a command.
+```
+
+## Examples
+
+Get all Kustomizations
+```shell
+$ flx get ks -A
+NAME  	        NAMESPACE   SOURCE                          RESOURCES	ERROR
+cert-manager  	infra       git: flux-system/my-flux-repo	4  
+[..]
+```
+
+List all Kustomizations in namespace infra:
+```shell
+$ flx get ks -n infra
+NAME  	        SOURCE                          RESOURCES	ERROR
+cert-manager 	git: flux-system/my-flux-repo	4  
+[..]
+```
+
+List Kustomizations as yaml:
+```shell
+$ flx get ks -n infra -o yaml
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+[..]
+```
+
+Get a specific Kustomization as yaml:
+```shell
+$ flx get ks -n infra -o yaml
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+[..]
+```
+
+Get the result of building the kustomization (kustomize):
+```shell
+$ flx get ks -n infra -o kustomize
+---
+apiVersion: apps/v1
+kind: Deployment
+[..]
+```
+
+Make some changes to the local repository, then run `flx diff` command to compare
+the local file system against the remote repository:
+```shell
+$ flx diff ks -n infra yopass
+# changed  networking.k8s.io/v1/Ingress/infra/yopass
+spec.tls.0.hosts.0
+  ± value change
+    - pass.my.cluster.cisco.com
+    + test.my.cluster.cisco.com
+```
 
 ## Working across multiple repositories
 
 By default, flx only treats the git repo under "FLX_DIR" (entrypoint) as a *local* repository. Changes to other included
-repositories are not computed correctly during building or diffing. To tell flx to use a additional local file systems
+repositories are not computed correctly during building or diffing. To tell flx to use an additional local file systems
 rather than cloned git repositories, use the `-L` or `--local` flag:
 
 ```shell

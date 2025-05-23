@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
@@ -128,7 +129,11 @@ func (r *Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resu
 	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
 		var cmd *exec.Cmd
 		if repo.Spec.Type == "oci" {
-			repoURL, err := url.Parse(repo.Spec.URL)
+			var repoUrlString = repo.Spec.URL
+			if !strings.HasSuffix(repoUrlString, "/") {
+				repoUrlString = repoUrlString + "/"
+			}
+			repoURL, err := url.Parse(repoUrlString)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse helm repository URL: %w", err)
 			}
