@@ -1,0 +1,38 @@
+# Copyright (C) 2025 Cisco Systems, Inc.
+#
+# See CONTRIBUTING.md for instructions.
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/keith/pre-commit-buildifier
+    rev: 6.1.0.2
+    hooks:
+      - id: buildifier
+        args: &args # Keep this argument in sync with .bazelci/presubmit.yml
+          - --warnings=-bzl-visibility,-function-docstring-args,-function-docstring-return,-print,-unnamed-macro,-provider-params,-function-docstring-header,-no-effect,-uninitialized,-rule-impl-return
+      - id: buildifier-lint
+        args: *args
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+        # provisioning-tools has test fixtures with significant formatting
+        exclude: "connectivity/provisioning-tools/src/test/kotlin/io/omnicate/connectivity/tools/(ImportSimCardsTest|mvno/MappingTest).kt"
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+        exclude: ".*\\.svg$|voice/li/test/data/.*\\.bin$|copyright.txt"
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+        exclude: "aws_launch_template_.*"
+      - id: check-symlinks
+      - id: destroyed-symlinks
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/leoll2/copyright_notice_precommit
+    rev: 8c328ab1bdd32b5cb68a52c89cbf8b4bbeae1d21
+    hooks:
+      - id: copyright-notice
+        args: [--notice=copyright.txt]

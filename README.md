@@ -5,7 +5,7 @@ evaluate [Kustomizations](https://fluxcd.io/flux/components/kustomize/kustomizat
 and [OCIRepositories](https://fluxcd.io/flux/components/source/ocirepositories/), without a cluster.
 
 ```shell
-$ export FLX_DIR=../kubeconf/dub.dev.wgtwo.com/flux/flux-system 
+$ export FLX_DIR=../kubeconf/dub.dev.wgtwo.com/flux/flux-system
 $ flx get ks -n appdynamics
 ```
 
@@ -20,7 +20,7 @@ See [Releases](https://github.com/omnicate/flx/releases).
 ```shell
 $ gh release download -R omnicate/flx v0.1.4 -p "flx_darwin_arm64.tar.gz"
 $ tar -xvzf flx_darwin_arm64.tar.gz
-$ cp flx /usr/bin/flx 
+$ cp flx /usr/bin/flx
 ```
 
 Flx requires `helm` and `git` to be available in your path.
@@ -101,7 +101,7 @@ Get all Kustomizations
 ```shell
 $ flx get ks -A
 NAME  	        NAMESPACE   SOURCE                          RESOURCES	ERROR
-cert-manager  	infra       git: flux-system/my-flux-repo	4  
+cert-manager  	infra       git: flux-system/my-flux-repo	4
 [..]
 ```
 
@@ -109,7 +109,7 @@ List all Kustomizations in namespace infra:
 ```shell
 $ flx get ks -n infra
 NAME  	        SOURCE                          RESOURCES	ERROR
-cert-manager 	git: flux-system/my-flux-repo	4  
+cert-manager 	git: flux-system/my-flux-repo	4
 [..]
 ```
 
