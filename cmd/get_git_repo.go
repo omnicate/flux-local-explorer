@@ -34,7 +34,7 @@ var getGitRepoCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		mgr, err := newManager(true)
+		mgr, err := newManager(true, commandControllers(cmd, []string{"git"}))
 		if err != nil {
 			return err
 		}

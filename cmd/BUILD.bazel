@@ -32,6 +32,7 @@ go_library(
         "@com_github_spf13_cobra//:cobra",
         "@com_github_spf13_pflag//:pflag",
         "@com_github_spf13_viper//:viper",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_sigs_kustomize_kyaml//filesys",
         "@io_k8s_sigs_yaml//:yaml",
     ],
@@ -42,10 +43,14 @@ go_library(
 
 go_test(
     name = "cmd_test",
-    srcs = ["get_test.go"],
+    srcs = [
+        "get_test.go",
+        "root_test.go",
+    ],
     embed = [":cmd"],
     deps = [
         "//internal/controller",
+        "//internal/controller/git",
         "//internal/loader",
         "@com_github_fluxcd_kustomize_controller_api//v1:api",
         "@com_github_fluxcd_source_controller_api//v1:api",

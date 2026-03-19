@@ -21,4 +21,10 @@ go_test(
     name = "git_test",
     srcs = ["controller_test.go"],
     embed = [":git"],
+    deps = [
+        "//internal/controller",
+        "//internal/loader",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
 )

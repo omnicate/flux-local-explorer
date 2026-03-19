@@ -311,6 +311,54 @@ func TestHeaderHelpers(t *testing.T) {
 	}
 }
 
+func TestPrintKustomizationYAML(t *testing.T) {
+	ksNode := mustNode(t, `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: app
+  namespace: ns
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: repo
+`)
+	ksNode.Children = []*loader.ResourceNode{
+		mustNode(t, `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: child
+  namespace: ns
+`),
+	}
+
+	output := captureStdout(t, func() {
+		if err := printKustomizationYAML([]*loader.ResourceNode{ksNode}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !strings.Contains(output, "Resources:") {
+		t.Fatalf("output = %q, want Resources", output)
+	}
+	if strings.Count(output, "- apiVersion:") != 2 {
+		t.Fatalf("output = %q, want 2 resources", output)
+	}
+	if strings.Contains(output, "Error:") {
+		t.Fatalf("output = %q, did not want nil Error field", output)
+	}
+
+	ksNode.Error = errors.New("boom")
+	output = captureStdout(t, func() {
+		if err := printKustomizationYAML([]*loader.ResourceNode{ksNode}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !strings.Contains(output, "Error: boom") {
+		t.Fatalf("output = %q, want error", output)
+	}
+}
+
 func TestRepoGitHelpers(t *testing.T) {
 	tmpDir := t.TempDir()
 	originPath := filepath.Join(tmpDir, "origin.git")

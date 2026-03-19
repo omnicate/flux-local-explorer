@@ -1,11 +1,16 @@
 package loader
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/rs/zerolog"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/omnicate/flx/internal/controller"
@@ -233,6 +238,183 @@ metadata:
 	}
 	if _, ok := ctx.GetAttachment("ConfigMap", "ns", "missing"); ok {
 		t.Fatal("unexpected attachment for missing resource")
+	}
+}
+
+type stubController struct {
+	kinds     []string
+	reconcile func(controller.Context, *controller.Resource) (*controller.Result, error)
+}
+
+func (s stubController) Kinds() []string {
+	return s.kinds
+}
+
+func (s stubController) Reconcile(ctx controller.Context, resource *controller.Resource) (*controller.Result, error) {
+	return s.reconcile(ctx, resource)
+}
+
+func TestManagerRunAddsResourcesAndDeduplicates(t *testing.T) {
+	root := &ResourceNode{}
+	initial := mustNode(t, `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source
+  namespace: ns
+`)
+	initial.Status = StatusUnknown
+	root.Children = []*ResourceNode{initial}
+
+	secretResource := mustNode(t, `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: generated
+  namespace: ns
+`).Resource
+
+	mgr := NewManager(zerolog.Nop(), []controller.Controller{
+		stubController{
+			kinds: []string{"ConfigMap"},
+			reconcile: func(_ controller.Context, _ *controller.Resource) (*controller.Result, error) {
+				return &controller.Result{Resources: []*controller.Resource{secretResource, secretResource}}, nil
+			},
+		},
+	})
+	mgr.root = root
+
+	if err := mgr.Run(); err != nil {
+		t.Fatal(err)
+	}
+
+	nodes := mgr.AllNodes()
+	if len(nodes) != 2 {
+		t.Fatalf("len(nodes) = %d, want 2", len(nodes))
+	}
+	if nodes[0].Resource.GetName() != "source" || nodes[1].Resource.GetName() != "generated" {
+		t.Fatalf("nodes = %s, %s", nodes[0].Resource.GetName(), nodes[1].Resource.GetName())
+	}
+}
+
+func TestManagerProcessNodeRetriesAndMarksError(t *testing.T) {
+	node := mustNode(t, `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source
+  namespace: ns
+`)
+	node.Status = StatusUnknown
+
+	mgr := NewManager(zerolog.Nop(), []controller.Controller{
+		stubController{
+			kinds: []string{"ConfigMap"},
+			reconcile: func(_ controller.Context, _ *controller.Resource) (*controller.Result, error) {
+				return nil, errors.New("boom")
+			},
+		},
+	})
+	mgr.root = &ResourceNode{Children: []*ResourceNode{node}}
+
+	for i := 0; i < 6; i++ {
+		if ok := mgr.processNode(node); !ok {
+			t.Fatalf("processNode() = false on attempt %d", i)
+		}
+	}
+
+	if node.Status != StatusError {
+		t.Fatalf("node.Status = %v, want StatusError", node.Status)
+	}
+	if node.Error == nil || node.Error.Error() != "boom" {
+		t.Fatalf("node.Error = %v, want boom", node.Error)
+	}
+	if node.Attempts != 6 {
+		t.Fatalf("node.Attempts = %d, want 6", node.Attempts)
+	}
+}
+
+func TestManagerProcessNodeWithoutControllerCompletes(t *testing.T) {
+	node := mustNode(t, `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source
+  namespace: ns
+`)
+	node.Status = StatusUnknown
+
+	mgr := NewManager(zerolog.Nop(), nil)
+	mgr.root = &ResourceNode{Children: []*ResourceNode{node}}
+
+	if ok := mgr.processNode(node); !ok {
+		t.Fatal("processNode() = false, want true")
+	}
+	if node.Status != StatusCompleted {
+		t.Fatalf("node.Status = %v, want StatusCompleted", node.Status)
+	}
+}
+
+func TestManagerInitializeAddResourcesAndListWithKind(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "cm.yaml"), []byte(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: one
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := NewManager(zerolog.Nop(), nil)
+	if err := mgr.Initialize(makeFs(), tmpDir, "flux-system"); err != nil {
+		t.Fatal(err)
+	}
+	results := mgr.ListWithKind("ConfigMap", "flux-system", false)
+	if len(results) != 1 || results[0].Resource.GetNamespace() != "flux-system" {
+		t.Fatalf("results = %+v", results)
+	}
+
+	mgr.AddResources([]*controller.Resource{mustNode(t, `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: extra
+  namespace: other
+`).Resource})
+	if got := mgr.ListWithKind("Secret", "", true); len(got) != 1 || got[0].Resource.GetName() != "extra" {
+		t.Fatalf("ListWithKind(Secret) = %+v", got)
+	}
+}
+
+func TestClientSetGetAndGroupVersionKindFor(t *testing.T) {
+	cmNode := mustNode(t, `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: one
+  namespace: ns
+`)
+	clientset := NewClientSet(controller.Scheme, &ResourceNode{Children: []*ResourceNode{cmNode}})
+
+	var cm corev1.ConfigMap
+	if err := clientset.Get(context.Background(), client.ObjectKey{Name: "one", Namespace: "ns"}, &cm); err != nil {
+		t.Fatal(err)
+	}
+	if cm.Name != "one" {
+		t.Fatalf("cm.Name = %q, want one", cm.Name)
+	}
+
+	gvk, err := clientset.GroupVersionKindFor(&corev1.ConfigMap{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gvk.Kind != "ConfigMap" {
+		t.Fatalf("gvk.Kind = %q, want ConfigMap", gvk.Kind)
+	}
+
+	if err := clientset.Get(context.Background(), client.ObjectKey{Name: "missing", Namespace: "ns"}, &corev1.ConfigMap{}); err == nil || !strings.Contains(err.Error(), "object not found") {
+		t.Fatalf("missing Get() err = %v, want object not found", err)
 	}
 }
 

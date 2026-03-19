@@ -31,6 +31,8 @@ go_test(
     embed = [":loader"],
     deps = [
         "//internal/controller",
+        "@io_k8s_api//core/v1:go_default_library",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
         "@io_k8s_sigs_kustomize_kyaml//filesys",
     ],
 )

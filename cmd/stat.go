@@ -32,7 +32,7 @@ var statCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		mgr, err := newManager(true)
+		mgr, err := newManager(true, rootArgs.enabledControllers)
 		if err != nil {
 			return err
 		}
