@@ -144,6 +144,27 @@ func (l *Loader) handleGitRepository(
 	}, nil
 }
 
+func (l *Loader) fallbackLocalGitRepository(nn string) (filesys.FileSystem, bool) {
+	if repoFS, ok := l.repos[nn]; ok {
+		return repoFS, true
+	}
+	if len(l.repoReplace) != 1 {
+		return nil, false
+	}
+
+	localRepo := l.repoReplace[0]
+	repoFS := fs.KrustyFileSystem(fs.Prefix(
+		filesys.MakeFsOnDisk(),
+		localRepo.Path,
+	))
+	l.repos[nn] = repoFS
+	l.logger.Debug().
+		Str("source", nn).
+		Str("local", localRepo.Path).
+		Msg("using local repository fallback for missing git source")
+	return repoFS, true
+}
+
 func gitHttpsURL(u string) string {
 	if strings.HasPrefix(u, "https://") {
 		return u

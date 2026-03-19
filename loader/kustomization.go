@@ -30,6 +30,9 @@ func (l *Loader) handleKustomization(
 		ks.Spec.SourceRef.Name,
 	)
 	repoFS, ok := l.repos[repoName]
+	if !ok && ks.Spec.SourceRef.Kind == "GitRepository" {
+		repoFS, ok = l.fallbackLocalGitRepository(repoName)
+	}
 	if !ok {
 		return nil, fmt.Errorf("could not find source: %s", repoName)
 	}
