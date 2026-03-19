@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "fs",
@@ -16,6 +16,18 @@ go_library(
         "@com_github_go_git_go_git_v5//plumbing",
         "@com_github_go_git_go_git_v5//plumbing/filemode",
         "@com_github_go_git_go_git_v5//plumbing/object",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)
+
+go_test(
+    name = "fs_test",
+    srcs = [
+        "fs_test.go",
+        "git_test.go",
+    ],
+    embed = [":fs"],
+    deps = [
         "@io_k8s_sigs_kustomize_kyaml//filesys",
     ],
 )

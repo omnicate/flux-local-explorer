@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "cmd",
@@ -38,4 +38,20 @@ go_library(
     x_defs = {
         "Version": "{STABLE_STAMP_VERSION}",
     },
+)
+
+go_test(
+    name = "cmd_test",
+    srcs = ["get_test.go"],
+    embed = [":cmd"],
+    deps = [
+        "//internal/controller",
+        "//internal/loader",
+        "@com_github_fluxcd_kustomize_controller_api//v1:api",
+        "@com_github_fluxcd_source_controller_api//v1:api",
+        "@com_github_fluxcd_source_controller_api//v1beta2",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_sigs_kustomize_api//resource",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
 )
