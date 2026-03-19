@@ -40,7 +40,7 @@ var diffKustomizationCmd = &cobra.Command{
 
 		{
 			logger.Debug().Msg("Getting base version")
-			mgr, err := newManager(false)
+			mgr, err := newManager(false, rootArgs.enabledControllers)
 			if err != nil {
 				return err
 			}
@@ -62,7 +62,7 @@ var diffKustomizationCmd = &cobra.Command{
 
 		{
 			logger.Debug().Msg("Getting current version")
-			mgr, err := newManager(true)
+			mgr, err := newManager(true, rootArgs.enabledControllers)
 			if err != nil {
 				return err
 			}

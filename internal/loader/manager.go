@@ -195,6 +195,14 @@ func (m *Manager) AllNodes() []*ResourceNode {
 	return m.root.Flat()
 }
 
+// AddResources seeds the resource tree with additional resources before Run.
+func (m *Manager) AddResources(resources []*controller.Resource) {
+	if m.root == nil {
+		m.root = &ResourceNode{}
+	}
+	m.root.AddResources(resources)
+}
+
 // ListWithKind retrieves resources that are of a specific kind.
 func (m *Manager) ListWithKind(kind, namespace string, allNamespaces bool) []*ResourceNode {
 	result := m.root.Flat().FilterByKind(kind)

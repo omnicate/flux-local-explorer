@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "loader",
@@ -22,5 +22,17 @@ go_library(
         "@io_k8s_sigs_kustomize_api//types",
         "@io_k8s_sigs_kustomize_kyaml//filesys",
         "@io_k8s_sigs_kustomize_kyaml//kio",
+    ],
+)
+
+go_test(
+    name = "loader_test",
+    srcs = ["loader_test.go"],
+    embed = [":loader"],
+    deps = [
+        "//internal/controller",
+        "@io_k8s_api//core/v1:go_default_library",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
     ],
 )

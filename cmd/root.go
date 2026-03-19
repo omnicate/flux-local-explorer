@@ -31,7 +31,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
+	sigyaml "sigs.k8s.io/yaml"
 
 	ctrl "github.com/omnicate/flx/internal/controller"
 	"github.com/omnicate/flx/internal/controller/extsecret"
@@ -164,7 +167,16 @@ func init() {
 	viper.SetDefault("dir", ".")
 }
 
-func newManager(useLocal bool) (*loader.Manager, error) {
+func commandControllers(cmd *cobra.Command, defaults []string) []string {
+	if cmd != nil {
+		if flag := cmd.Flag("controllers"); flag != nil && flag.Changed {
+			return slices.Clone(rootArgs.enabledControllers)
+		}
+	}
+	return slices.Clone(defaults)
+}
+
+func newManager(useLocal bool, enabledControllers []string) (*loader.Manager, error) {
 	// Ensure deps in path:
 	for _, bin := range []string{"git", "helm"} {
 		if _, err := exec.LookPath(bin); err != nil {
@@ -237,7 +249,7 @@ func newManager(useLocal bool) (*loader.Manager, error) {
 	}
 
 	var controllers []ctrl.Controller
-	if slices.Contains(rootArgs.enabledControllers, "git") {
+	if slices.Contains(enabledControllers, "git") {
 		logger.Debug().Msg("enabling git controller")
 		controllers = append(controllers, git.NewController(
 			logger.With().Str("controller", "git").Logger(),
@@ -248,7 +260,7 @@ func newManager(useLocal bool) (*loader.Manager, error) {
 			},
 		))
 	}
-	if slices.Contains(rootArgs.enabledControllers, "oci") {
+	if slices.Contains(enabledControllers, "oci") {
 		logger.Debug().Msg("enabling oci controller")
 		controllers = append(controllers, oci.NewController(
 			logger.With().Str("controller", "oci").Logger(),
@@ -257,13 +269,13 @@ func newManager(useLocal bool) (*loader.Manager, error) {
 			},
 		))
 	}
-	if slices.Contains(rootArgs.enabledControllers, "ks") {
+	if slices.Contains(enabledControllers, "ks") {
 		logger.Debug().Msg("enabling kustomize controller")
 		controllers = append(controllers, kustomize.NewController(
 			logger.With().Str("controller", "kustomize").Logger(),
 		))
 	}
-	if slices.Contains(rootArgs.enabledControllers, "helm") {
+	if slices.Contains(enabledControllers, "helm") {
 		logger.Debug().Msg("enabling helm controller")
 		controllers = append(controllers, helm.NewController(
 			logger.With().Str("controller", "helm").Logger(),
@@ -272,7 +284,7 @@ func newManager(useLocal bool) (*loader.Manager, error) {
 			},
 		))
 	}
-	if slices.Contains(rootArgs.enabledControllers, "external-secrets") {
+	if slices.Contains(enabledControllers, "external-secrets") {
 		logger.Debug().Msg("enabling external-secrets controller")
 		controllers = append(controllers, extsecret.NewController(
 			logger.With().Str("controller", "external-secrets").Logger(),
@@ -290,8 +302,100 @@ func newManager(useLocal bool) (*loader.Manager, error) {
 	); err != nil {
 		return nil, err
 	}
+	implicitResources, err := implicitLocalGitRepositoryResources(
+		filesys.MakeFsOnDisk(),
+		rootArgs.fluxDir,
+		localRepos,
+	)
+	if err != nil {
+		return nil, err
+	}
+	repoLoader.AddResources(implicitResources)
 
 	return repoLoader, nil
+}
+
+func implicitLocalGitRepositoryResources(
+	fs filesys.FileSystem,
+	path string,
+	localRepos []*git.LocalReplace,
+) ([]*ctrl.Resource, error) {
+	if len(localRepos) != 1 {
+		return nil, nil
+	}
+	resources, err := loader.LoadPath(fs, path)
+	if err != nil {
+		return nil, err
+	}
+
+	localRepo := localRepos[0]
+	existing := make(map[string]struct{})
+	for _, res := range resources {
+		if res.GetKind() != "GitRepository" {
+			continue
+		}
+		existing[res.GetNamespace()+"/"+res.GetName()] = struct{}{}
+	}
+
+	var out []*ctrl.Resource
+	for _, res := range resources {
+		if res.GetKind() != "Kustomization" {
+			continue
+		}
+		var ks sourcev1GitRefCompatKustomization
+		if err := sigyaml.Unmarshal([]byte(res.MustYaml()), &ks); err != nil {
+			return nil, err
+		}
+		if ks.Spec.SourceRef.Kind != "GitRepository" {
+			continue
+		}
+		key := ctrl.Any(ks.Spec.SourceRef.Namespace, ks.Namespace) + "/" + ks.Spec.SourceRef.Name
+		if _, ok := existing[key]; ok {
+			continue
+		}
+
+		gr := sourcev1.GitRepository{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "source.toolkit.fluxcd.io/v1",
+				Kind:       "GitRepository",
+			},
+			ObjectMeta: ks.ObjectMeta,
+			Spec: sourcev1.GitRepositorySpec{
+				URL: localRepo.Remote,
+				Reference: &sourcev1.GitRepositoryRef{
+					Branch: localRepo.Branch,
+					Commit: localRepo.Commit,
+					Tag:    localRepo.Tag,
+				},
+			},
+		}
+		gr.Namespace = ctrl.Any(ks.Spec.SourceRef.Namespace, ks.Namespace)
+		gr.Name = ks.Spec.SourceRef.Name
+
+		data, err := sigyaml.Marshal(gr)
+		if err != nil {
+			return nil, err
+		}
+		parsed, err := loader.LoadBytes(data)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ctrl.NewResources(parsed)...)
+		existing[key] = struct{}{}
+	}
+	return out, nil
+}
+
+type sourcev1GitRefCompatKustomization struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec              struct {
+		SourceRef struct {
+			Kind      string `json:"kind,omitempty"`
+			Name      string `json:"name,omitempty"`
+			Namespace string `json:"namespace,omitempty"`
+		} `json:"sourceRef,omitempty"`
+	} `json:"spec,omitempty"`
 }
 
 func postInitCommands(commands []*cobra.Command) {

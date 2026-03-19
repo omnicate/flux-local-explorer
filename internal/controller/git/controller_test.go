@@ -17,7 +17,16 @@
 package git
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/rs/zerolog"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
+
+	ctrl "github.com/omnicate/flx/internal/controller"
+	"github.com/omnicate/flx/internal/loader"
 )
 
 func Test_gitHttpsUrl(t *testing.T) {
@@ -64,6 +73,221 @@ func Test_gitHttpsUrl(t *testing.T) {
 				t.Errorf("gitSSHUrl() got = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+type stubContext struct {
+	attachments map[string]any
+}
+
+func (s stubContext) ClientSet() client.Client {
+	return nil
+}
+
+func (s stubContext) GetAttachment(kind, namespace, name string) (any, bool) {
+	v, ok := s.attachments[kind+"/"+namespace+"/"+name]
+	return v, ok
+}
+
+func (s stubContext) GetResource(kind, namespace, name string) (*ctrl.Resource, bool) {
+	return nil, false
+}
+
+func makeGitRepoResource(t *testing.T, yaml string) *ctrl.Resource {
+	t.Helper()
+	resources, err := loader.LoadBytes([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ctrl.NewResources(resources)[0]
+}
+
+func TestControllerReconcileUsesLocalRepository(t *testing.T) {
+	tmpDir := t.TempDir()
+	repoPath := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(filepath.Join(repoPath, "dir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "dir", "file.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resource := makeGitRepoResource(t, `
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: repo
+  namespace: flux-system
+spec:
+  url: ssh://git@example.com/repo.git
+  ref:
+    branch: main
+`)
+
+	controller := NewController(zerolog.Nop(), Options{
+		Local: []*LocalReplace{{
+			Remote: "ssh://git@example.com/repo.git",
+			Path:   repoPath,
+			Branch: "main",
+		}},
+	})
+
+	result, err := controller.Reconcile(stubContext{}, resource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs, ok := result.Attachment.(filesys.FileSystem)
+	if !ok {
+		t.Fatalf("attachment type = %T, want filesys.FileSystem", result.Attachment)
+	}
+	data, err := fs.ReadFile("dir/file.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "hello" {
+		t.Fatalf("ReadFile() = %q, want hello", string(data))
+	}
+}
+
+func TestControllerReconcileMountsIncludes(t *testing.T) {
+	tmpDir := t.TempDir()
+	repoPath := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "base.txt"), []byte("base"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	included := filesys.MakeFsInMemory()
+	if err := included.MkdirAll("src"); err != nil {
+		t.Fatal(err)
+	}
+	if err := included.WriteFile("src/child.txt", []byte("included")); err != nil {
+		t.Fatal(err)
+	}
+
+	resource := makeGitRepoResource(t, `
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: repo
+  namespace: flux-system
+spec:
+  url: ssh://git@example.com/repo.git
+  ref:
+    branch: main
+  include:
+  - repository:
+      name: shared
+    fromPath: src
+    toPath: mounted
+`)
+
+	controller := NewController(zerolog.Nop(), Options{
+		Local: []*LocalReplace{{
+			Remote: "ssh://git@example.com/repo.git",
+			Path:   repoPath,
+			Branch: "main",
+		}},
+	})
+
+	result, err := controller.Reconcile(stubContext{
+		attachments: map[string]any{
+			"GitRepository/flux-system/shared": included,
+		},
+	}, resource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs := result.Attachment.(filesys.FileSystem)
+	data, err := fs.ReadFile("mounted/child.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "included" {
+		t.Fatalf("ReadFile() = %q, want included", string(data))
+	}
+}
+
+func TestControllerReconcileErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	repoPath := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	controller := NewController(zerolog.Nop(), Options{
+		Local: []*LocalReplace{{
+			Remote: "ssh://git@example.com/repo.git",
+			Path:   repoPath,
+			Branch: "main",
+		}},
+	})
+
+	resource := makeGitRepoResource(t, `
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: repo
+  namespace: flux-system
+spec: {}
+`)
+
+	if _, err := controller.Reconcile(stubContext{}, resource); err == nil || err.Error() != "git repo reference is required" {
+		t.Fatalf("Reconcile(no ref) err = %v", err)
+	}
+
+	resource = makeGitRepoResource(t, `
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: repo
+  namespace: flux-system
+spec:
+  url: ssh://git@example.com/repo.git
+  ref: {}
+`)
+	if _, err := controller.Reconcile(stubContext{}, resource); err == nil || err.Error() != "git repo must have a reference" {
+		t.Fatalf("Reconcile(empty ref) err = %v", err)
+	}
+
+	resource = makeGitRepoResource(t, `
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: repo
+  namespace: flux-system
+spec:
+  url: ssh://git@example.com/repo.git
+  ref:
+    branch: main
+  include:
+  - repository:
+      name: shared
+`)
+	if _, err := controller.Reconcile(stubContext{}, resource); err == nil || err.Error() != "include flux-system/shared not found" {
+		t.Fatalf("Reconcile(missing include) err = %v", err)
+	}
+
+	if _, err := controller.Reconcile(stubContext{
+		attachments: map[string]any{
+			"GitRepository/flux-system/shared": "wrong",
+		},
+	}, resource); err == nil || err.Error() != "include flux-system/shared has invalid attachment: string" {
+		t.Fatalf("Reconcile(invalid include attachment) err = %v", err)
+	}
+}
+
+func TestLocalReplaceRef(t *testing.T) {
+	if got := (&LocalReplace{Commit: "sha", Branch: "main", Tag: "v1"}).Ref(); got != "sha" {
+		t.Fatalf("Ref(commit) = %q, want sha", got)
+	}
+	if got := (&LocalReplace{Branch: "main", Tag: "v1"}).Ref(); got != "main" {
+		t.Fatalf("Ref(branch) = %q, want main", got)
+	}
+	if got := (&LocalReplace{Tag: "v1"}).Ref(); got != "v1" {
+		t.Fatalf("Ref(tag) = %q, want v1", got)
 	}
 }
 

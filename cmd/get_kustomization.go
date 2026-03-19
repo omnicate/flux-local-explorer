@@ -21,6 +21,7 @@ import (
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/yaml"
 
 	"github.com/omnicate/flx/internal/loader"
 )
@@ -35,7 +36,7 @@ var getKustomizationCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		mgr, err := newManager(true)
+		mgr, err := newManager(true, commandControllers(cmd, []string{"ks", "git", "oci"}))
 		if err != nil {
 			return err
 		}
@@ -48,6 +49,9 @@ var getKustomizationCmd = &cobra.Command{
 			getArgs.allNamespaces,
 		)
 		results = filterResults(results, getArgs.name, getArgs.namespace, getArgs.allNamespaces)
+		if getArgs.format == "yaml" {
+			return printKustomizationYAML(results)
+		}
 
 		if getArgs.format == "kustomize" {
 			for _, re := range results {
@@ -108,4 +112,32 @@ func formatSource(ks *kustomizev1.Kustomization) string {
 		return "oci: " + ns + "/" + ks.Spec.SourceRef.Name
 	}
 	panic("unsupported kustomization source " + ks.Spec.SourceRef.Kind)
+}
+
+func printKustomizationYAML(results []*loader.ResourceNode) error {
+	if len(results) == 0 {
+		return fmt.Errorf("no results")
+	}
+	for _, result := range results {
+		doc := map[string]any{}
+		if result.Error != nil {
+			doc["Error"] = result.Error.Error()
+		}
+		resources := make([]any, 0, len(result.GetResources()))
+		for _, resourceNode := range result.GetResources() {
+			var parsed any
+			if err := yaml.Unmarshal([]byte(resourceNode.Resource.MustYaml()), &parsed); err != nil {
+				return err
+			}
+			resources = append(resources, parsed)
+		}
+		doc["Resources"] = resources
+		fmt.Println("---")
+		data, err := yaml.Marshal(doc)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+	}
+	return nil
 }

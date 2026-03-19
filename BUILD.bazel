@@ -1,6 +1,15 @@
 load("@gazelle//:def.bzl", "gazelle")
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
+test_suite(
+    name = "flx_tests",
+    tests = [
+        "//cmd:cmd_test",
+        "//internal/fs:fs_test",
+        "//internal/loader:loader_test",
+    ],
+)
+
 gazelle(name = "gazelle")
 
 go_library(
