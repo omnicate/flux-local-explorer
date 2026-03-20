@@ -27,22 +27,22 @@ import (
 	"strings"
 	"time"
 
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 	sigyaml "sigs.k8s.io/yaml"
 
-	ctrl "github.com/omnicate/flx/internal/controller"
-	"github.com/omnicate/flx/internal/controller/extsecret"
-	"github.com/omnicate/flx/internal/controller/git"
-	"github.com/omnicate/flx/internal/controller/helm"
-	"github.com/omnicate/flx/internal/controller/kustomize"
-	"github.com/omnicate/flx/internal/controller/oci"
-	"github.com/omnicate/flx/internal/loader"
+	ctrl "github.com/omnicate/flux-local-explorer/internal/controller"
+	"github.com/omnicate/flux-local-explorer/internal/controller/extsecret"
+	"github.com/omnicate/flux-local-explorer/internal/controller/git"
+	"github.com/omnicate/flux-local-explorer/internal/controller/helm"
+	"github.com/omnicate/flux-local-explorer/internal/controller/kustomize"
+	"github.com/omnicate/flux-local-explorer/internal/controller/oci"
+	"github.com/omnicate/flux-local-explorer/internal/loader"
 )
 
 type RootFlags struct {

@@ -16,7 +16,7 @@
 
 package main
 
-import "github.com/omnicate/flx/cmd"
+import "github.com/omnicate/flux-local-explorer/cmd"
 
 func main() {
 	cmd.Execute()

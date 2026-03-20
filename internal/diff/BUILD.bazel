@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "diff",
     srcs = ["resource_set.go"],
-    importpath = "github.com/omnicate/flx/internal/diff",
+    importpath = "github.com/omnicate/flux-local-explorer/internal/diff",
     visibility = ["//:__subpackages__"],
     deps = ["//internal/controller"],
 )

@@ -17,7 +17,7 @@
 package git
 
 import (
-	ctrl "github.com/omnicate/flx/internal/controller"
+	ctrl "github.com/omnicate/flux-local-explorer/internal/controller"
 )
 
 type Options struct {

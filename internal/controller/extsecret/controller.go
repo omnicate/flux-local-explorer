@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/kustomize/api/resource"
 
-	ctrl "github.com/omnicate/flx/internal/controller"
+	ctrl "github.com/omnicate/flux-local-explorer/internal/controller"
 )
 
 func init() {

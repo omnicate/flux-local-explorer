@@ -22,7 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/omnicate/flx/internal/diff"
+	"github.com/omnicate/flux-local-explorer/internal/diff"
 )
 
 // diffKustomizationCmd compares two kustomizations

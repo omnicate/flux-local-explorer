@@ -1,4 +1,4 @@
-module github.com/omnicate/flx
+module github.com/omnicate/flux-local-explorer
 
 go 1.24.1
 
