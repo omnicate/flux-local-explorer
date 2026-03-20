@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	ctrl "github.com/omnicate/flx/internal/controller"
+	ctrl "github.com/omnicate/flux-local-explorer/internal/controller"
 )
 
 type Diff struct {

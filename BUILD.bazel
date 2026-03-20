@@ -15,7 +15,7 @@ gazelle(name = "gazelle")
 go_library(
     name = "flx_lib",
     srcs = ["main.go"],
-    importpath = "github.com/omnicate/flx",
+    importpath = "github.com/omnicate/flux-local-explorer",
     visibility = ["//visibility:private"],
     deps = ["//cmd"],
 )
@@ -23,7 +23,15 @@ go_library(
 go_binary(
     name = "flx",
     embed = [":flx_lib"],
-    visibility = ["//visibility:public"],
     gotags = ["purego"],
     pure = "on",  # disable CGO
+    visibility = ["//visibility:public"],
+)
+
+go_binary(
+    name = "flux-local-explorer",
+    embed = [":flx_lib"],
+    gotags = ["purego"],
+    pure = "on",  # disable CGO
+    visibility = ["//visibility:public"],
 )

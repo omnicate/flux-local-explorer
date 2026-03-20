@@ -25,7 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 
-	"github.com/omnicate/flx/internal/loader"
+	"github.com/omnicate/flux-local-explorer/internal/loader"
 )
 
 type GetFlags struct {

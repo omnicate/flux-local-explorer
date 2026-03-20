@@ -39,8 +39,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	sigyaml "sigs.k8s.io/yaml"
 
-	ctrl "github.com/omnicate/flx/internal/controller"
-	"github.com/omnicate/flx/internal/loader"
+	ctrl "github.com/omnicate/flux-local-explorer/internal/controller"
+	"github.com/omnicate/flux-local-explorer/internal/loader"
 )
 
 func init() {

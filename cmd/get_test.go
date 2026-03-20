@@ -15,8 +15,8 @@ import (
 	"sigs.k8s.io/kustomize/api/resource"
 	sigyaml "sigs.k8s.io/yaml"
 
-	"github.com/omnicate/flx/internal/controller"
-	"github.com/omnicate/flx/internal/loader"
+	"github.com/omnicate/flux-local-explorer/internal/controller"
+	"github.com/omnicate/flux-local-explorer/internal/loader"
 )
 
 func captureStdout(t *testing.T, fn func()) string {

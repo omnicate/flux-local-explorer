@@ -6,7 +6,7 @@ go_library(
         "controller.go",
         "options.go",
     ],
-    importpath = "github.com/omnicate/flx/internal/controller/oci",
+    importpath = "github.com/omnicate/flux-local-explorer/internal/controller/oci",
     visibility = ["//visibility:public"],
     deps = [
         "//internal/controller",

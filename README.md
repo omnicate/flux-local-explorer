@@ -1,24 +1,52 @@
-# flx
+# flux-local-explorer
 
-Recursively
-evaluate [Kustomizations](https://fluxcd.io/flux/components/kustomize/kustomizations/), [GitRepositories](https://fluxcd.io/flux/components/source/gitrepositories/)
-and [OCIRepositories](https://fluxcd.io/flux/components/source/ocirepositories/), without a cluster.
+`flux-local-explorer` is an offline Flux evaluation CLI. The primary command
+name remains `flx`. It resolves Flux sources and
+Kustomizations from a local checkout, cloned Git repositories, and OCI
+artifacts, then renders the resulting Kubernetes manifests without requiring a
+running cluster.
+
+The tool is intended for development and review workflows where you want to
+inspect what Flux would build before a change is pushed or reconciled. It can
+be used to:
+
+- list Flux resources from a repository tree
+- render a `Kustomization` and its dependencies locally
+- diff the rendered output of local changes against the upstream Flux sources
+- work across multiple repositories when a deployment depends on shared Git
+  sources
+
+`flux-local-explorer` currently focuses on the Flux resource types used by this repository and
+its surrounding workflows. It is a companion CLI for evaluating Flux-managed
+configurations, not a replacement for Flux controllers running in-cluster.
 
 ```shell
 $ export FLX_DIR=../kubeconf/dub.dev.wgtwo.com/flux/flux-system
 $ flx get ks -n appdynamics
 ```
 
-`flx` starts looking for resources in `FLX_DIR`, it clones git and oci repositories, checks
-out specific references (commits, branches, tags), runs `kustomize` and performs post build
+`flx` starts looking for resources in `FLX_DIR`, clones referenced Git and OCI
+repositories, checks out specific references (commits, branches, tags), runs
+`kustomize`, and performs Flux post-build
 [substitution](https://fluxcd.io/flux/components/kustomize/kustomizations/#post-build-variable-substitution).
+
+## What It Does
+
+At a high level, `flux-local-explorer` follows the same dependency chain a Flux installation
+would follow:
+
+1. Read Flux resources from the entrypoint repository under `FLX_DIR`
+2. Resolve referenced `GitRepository`, `OCIRepository`, and Helm sources
+3. Build `Kustomization` resources recursively
+4. Apply post-build substitution
+5. Print resources or compare rendered output with `flx diff`
 
 ## Installation
 
-See [Releases](https://github.com/omnicate/flx/releases).
+See [Releases](https://github.com/omnicate/flux-local-explorer/releases).
 
 ```shell
-$ gh release download -R omnicate/flx v0.1.4 -p "flx_darwin_arm64.tar.gz"
+$ gh release download -R omnicate/flux-local-explorer v0.1.4 -p "flx_darwin_arm64.tar.gz"
 $ tar -xvzf flx_darwin_arm64.tar.gz
 $ cp flx /usr/bin/flx
 ```
@@ -27,7 +55,7 @@ Flx requires `helm` and `git` to be available in your path.
 Optionally, [dyff](https://github.com/homeport/dyff) is recommended for diffing k8s resource sets,
 unless you want to use some other diff utility.
 
-## Supported resources
+## Supported Resources
 
 FLX splits up functionality into [controllers](tree/main/internal/controller). Each controller handles certain resource
 kinds (and versions). The following is an overview of the supported resources:
@@ -62,7 +90,7 @@ This controller creates secrets from `ExternalSecret` resources.
 
 And possibly also other versions of the resources.
 
-# Usage
+## Usage
 
 ```shell
 $ flx version
@@ -151,7 +179,7 @@ spec.tls.0.hosts.0
     + test.my.cluster.cisco.com
 ```
 
-## Working across multiple repositories
+## Working Across Multiple Repositories
 
 By default, flx only treats the git repo under "FLX_DIR" (entrypoint) as a *local* repository. Changes to other included
 repositories are not computed correctly during building or diffing. To tell flx to use an additional local file systems
@@ -192,8 +220,8 @@ Hence, when five resources change, the diff tool is called five times.
 ## Development
 
 ```shell
-$ git clone https://github.com/omnicate/flx
-$ cd flx
+$ git clone https://github.com/omnicate/flux-local-explorer
+$ cd flux-local-explorer
 $ bazel build //:flx
 # Place the binary in your path
 $ cp bazel-bin/flx_/flx /usr/bin/flx
@@ -205,3 +233,9 @@ $ cp bazel-bin/flx_/flx /usr/bin/flx
 
 > By default flx clones via SSH. If you don't have git via SSH set up correctly, you can
 > force flx to use HTTPS via `--git-force-https` flag.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines,
+[SECURITY.md](SECURITY.md) for vulnerability reporting, and
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations.

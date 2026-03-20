@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/omnicate/flux-local-explorer/internal/controller/git"
 	"github.com/spf13/cobra"
-	"github.com/omnicate/flx/internal/controller/git"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 

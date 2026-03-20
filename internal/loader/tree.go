@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/omnicate/flx/internal/controller"
+	"github.com/omnicate/flux-local-explorer/internal/controller"
 )
 
 type ResourceStatus int

@@ -20,7 +20,7 @@ import (
 	sourcev1b2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/spf13/cobra"
 
-	"github.com/omnicate/flx/internal/loader"
+	"github.com/omnicate/flux-local-explorer/internal/loader"
 )
 
 var getOciRepoCmd = &cobra.Command{

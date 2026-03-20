@@ -22,7 +22,7 @@ import (
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/spf13/cobra"
 
-	"github.com/omnicate/flx/internal/loader"
+	"github.com/omnicate/flux-local-explorer/internal/loader"
 )
 
 var getGitRepoCmd = &cobra.Command{

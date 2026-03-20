@@ -8,7 +8,7 @@ go_library(
         "manager.go",
         "tree.go",
     ],
-    importpath = "github.com/omnicate/flx/internal/loader",
+    importpath = "github.com/omnicate/flux-local-explorer/internal/loader",
     visibility = ["//visibility:public"],
     deps = [
         "//internal/controller",

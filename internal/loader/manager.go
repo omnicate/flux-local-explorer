@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/omnicate/flx/internal/controller"
+	"github.com/omnicate/flux-local-explorer/internal/controller"
 )
 
 const maxIterations = 4096

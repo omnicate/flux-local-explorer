@@ -26,8 +26,8 @@ import (
 	"github.com/rs/zerolog"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	ctrl "github.com/omnicate/flx/internal/controller"
-	"github.com/omnicate/flx/internal/loader"
+	ctrl "github.com/omnicate/flux-local-explorer/internal/controller"
+	"github.com/omnicate/flux-local-explorer/internal/loader"
 )
 
 func init() {
