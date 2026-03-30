@@ -12,7 +12,7 @@ require (
 	github.com/fluxcd/pkg/kustomize v1.16.0
 	github.com/fluxcd/pkg/oci v0.45.0
 	github.com/fluxcd/source-controller/api v1.5.0
-	github.com/go-git/go-git/v5 v5.16.5
+	github.com/go-git/go-git/v5 v5.17.1
 	github.com/go-logr/zerologr v1.2.3
 	github.com/google/go-containerregistry v0.20.3
 	github.com/rs/zerolog v1.34.0
@@ -75,7 +75,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
-	github.com/go-git/go-billy/v5 v5.6.2 // indirect
+	github.com/go-git/go-billy/v5 v5.8.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-openapi/jsonpointer v0.21.1 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
