@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -356,6 +357,39 @@ metadata:
 	})
 	if !strings.Contains(output, "Error: boom") {
 		t.Fatalf("output = %q, want error", output)
+	}
+}
+
+func TestRenderKustomizeOutputReturnsErrorForFailedKustomization(t *testing.T) {
+	ksNode := mustNode(t, `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: app
+  namespace: ns
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: repo
+`)
+	ksNode.Children = []*loader.ResourceNode{
+		mustNode(t, `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: child
+  namespace: ns
+`),
+	}
+	ksNode.Error = errors.New("boom")
+
+	var out bytes.Buffer
+	err := renderKustomizeOutput(&out, []*loader.ResourceNode{ksNode})
+	if err == nil || !strings.Contains(err.Error(), "app") || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("err = %v, want app/boom failure", err)
+	}
+	if !strings.Contains(out.String(), "kind: ConfigMap") {
+		t.Fatalf("output = %q, want rendered child resource", out.String())
 	}
 }
 

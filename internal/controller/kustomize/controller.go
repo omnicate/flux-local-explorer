@@ -19,6 +19,8 @@ package kustomize
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
@@ -83,7 +85,7 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 	}
 
 	// Load resources:
-	resources, err := loader.LoadPath(repoFS, ks.Spec.Path)
+	resources, err := loader.LoadPath(repoFS, normalizeRepoPath(ks.Spec.Path))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load path: %v", err)
 	}
@@ -125,4 +127,15 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 	// TODO: add load functions to directly use Resource.
 	//  Only the KS controller should need to load resources. Ever.
 	return &ctrl.Result{Resources: ctrl.NewResources(resources)}, nil
+}
+
+func normalizeRepoPath(path string) string {
+	cleaned := filepath.Clean(path)
+	if filepath.IsAbs(cleaned) {
+		cleaned = strings.TrimLeft(cleaned, string(filepath.Separator))
+		if cleaned == "" {
+			return "."
+		}
+	}
+	return cleaned
 }
