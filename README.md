@@ -170,7 +170,7 @@ kind: Deployment
 
 If the selected Kustomization has reconciliation errors, `-o kustomize` prints
 the rendered resources collected so far and exits non-zero with a summary of the
-errors.
+errors, including the failing rendered resource when available.
 
 Make some changes to the local repository, then run `flx diff` command to compare
 the local file system against the remote repository:

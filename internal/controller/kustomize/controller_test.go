@@ -3,6 +3,7 @@ package kustomize
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -86,5 +87,67 @@ spec:
 	}
 	if len(result.Resources) != 1 || result.Resources[0].GetKind() != "ConfigMap" || result.Resources[0].GetName() != "demo" {
 		t.Fatalf("result.Resources = %+v, want rendered configmap", result.Resources)
+	}
+}
+
+func TestReconcileIncludesResourceIdentityOnSubstitutionError(t *testing.T) {
+	tmpDir := t.TempDir()
+	repoDir := filepath.Join(tmpDir, "repo")
+	appDir := filepath.Join(repoDir, "workloads", "demo", "app")
+	if err := os.MkdirAll(appDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appDir, "kustomization.yaml"), []byte(`
+resources:
+  - dashboard.yaml
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appDir, "dashboard.yaml"), []byte(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-provisor-overview
+  namespace: ns
+data:
+  datasource: ${DS_PROMETHEUS_HI_RES}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err := loader.LoadBytes([]byte(`
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: demo
+  namespace: ns
+spec:
+  path: ./workloads/demo/app
+  postBuild:
+    substitute:
+      cluster: demo
+  sourceRef:
+    kind: GitRepository
+    name: repo
+    namespace: flux-system
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repoFS := fluxfs.KrustyFileSystem(fluxfs.Prefix(filesys.MakeFsOnDisk(), repoDir))
+	ctx := stubContext{
+		attachments: map[string]any{
+			"GitRepository/flux-system/repo": repoFS,
+		},
+		client: loader.NewClientSet(ctrl.Scheme, &loader.ResourceNode{}),
+	}
+
+	_, err = NewController(zerolog.Nop()).Reconcile(ctx, ctrl.NewResource(resources[0]))
+	if err == nil {
+		t.Fatal("expected substitution error")
+	}
+	if got := err.Error(); !strings.Contains(got, "ConfigMap/ns/dashboard-provisor-overview") || !strings.Contains(got, "DS_PROMETHEUS_HI_RES") {
+		t.Fatalf("err = %q, want resource identity and variable name", got)
 	}
 }
