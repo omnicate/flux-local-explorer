@@ -90,6 +90,8 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 		return nil, fmt.Errorf("failed to load path: %v", err)
 	}
 
+	targetNamespace := ctrl.Any(ks.Spec.TargetNamespace, ks.Namespace)
+
 	// Variable substitution:
 	if pb := ks.Spec.PostBuild; pb != nil && (pb.SubstituteFrom != nil || pb.Substitute != nil) {
 		obj, err := req.Unstructured()
@@ -106,14 +108,19 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 				kustomize.SubstituteWithStrict(true),
 			)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf(
+					"%s/%s/%s: %w",
+					res.GetKind(),
+					ctrl.Any(res.GetNamespace(), targetNamespace),
+					res.GetName(),
+					err,
+				)
 			}
 			resources[i] = newRes
 		}
 	}
 
 	// Parse the resulting resources:
-	targetNamespace := ctrl.Any(ks.Spec.TargetNamespace, ks.Namespace)
 	for _, res := range resources {
 		if res.GetNamespace() == "" {
 			_ = res.SetNamespace(targetNamespace)
