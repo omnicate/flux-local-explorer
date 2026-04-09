@@ -18,6 +18,9 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"strings"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/spf13/cobra"
@@ -54,13 +57,7 @@ var getKustomizationCmd = &cobra.Command{
 		}
 
 		if getArgs.format == "kustomize" {
-			for _, re := range results {
-				for _, r := range re.GetResources() {
-					fmt.Println("---")
-					fmt.Println(r.Resource.MustYaml())
-				}
-			}
-			return nil
+			return renderKustomizeOutput(os.Stdout, results)
 		}
 
 		return printResults(results, kustomizationHeaders, kustomizationRows)
@@ -138,6 +135,36 @@ func printKustomizationYAML(results []*loader.ResourceNode) error {
 			return err
 		}
 		fmt.Println(string(data))
+	}
+	return nil
+}
+
+func renderKustomizeOutput(w io.Writer, results []*loader.ResourceNode) error {
+	if len(results) == 0 {
+		return fmt.Errorf("no results")
+	}
+
+	var errs []string
+	for _, result := range results {
+		for _, resourceNode := range result.GetResources() {
+			if _, err := fmt.Fprintln(w, "---"); err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintln(w, resourceNode.Resource.MustYaml()); err != nil {
+				return err
+			}
+		}
+		if result.Error != nil {
+			errs = append(errs, fmt.Sprintf(
+				"%s/%s: %v",
+				result.Resource.GetNamespace(),
+				result.Resource.GetName(),
+				result.Error,
+			))
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("kustomization errors: %s", strings.Join(errs, "; "))
 	}
 	return nil
 }
