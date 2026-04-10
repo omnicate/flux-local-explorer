@@ -43,13 +43,24 @@ would follow:
 
 ## Installation
 
-See [Releases](https://github.com/omnicate/flux-local-explorer/releases).
+Download the latest release from
+[Releases](https://github.com/omnicate/flux-local-explorer/releases) with the
+archive that matches your platform:
+
+- `flx_darwin_arm64.tar.gz`
+- `flx_darwin_amd64.tar.gz`
+- `flx_linux_arm64.tar.gz`
+- `flx_linux_amd64.tar.gz`
 
 ```shell
-$ gh release download -R omnicate/flux-local-explorer v0.1.4 -p "flx_darwin_arm64.tar.gz"
-$ tar -xvzf flx_darwin_arm64.tar.gz
-$ cp flx /usr/bin/flx
+$ gh release download -R omnicate/flux-local-explorer --latest -p "flx_darwin_arm64.tar.gz"
+$ tar -xzf flx_darwin_arm64.tar.gz
+$ install -m 0755 flx /usr/local/bin/flx
 ```
+
+Replace `flx_darwin_arm64.tar.gz` with the archive that matches your platform.
+If you do not use GitHub CLI, download the matching archive from the releases
+page and extract `flx` manually.
 
 Flx requires `helm` and `git` to be available in your path.
 Optionally, [dyff](https://github.com/homeport/dyff) is recommended for diffing k8s resource sets,
