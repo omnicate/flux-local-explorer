@@ -60,6 +60,9 @@ type RootFlags struct {
 	cacheDir  string
 
 	enabledControllers []string
+
+	// Feature gates:
+	strictSubstitutions bool
 }
 
 var (
@@ -155,6 +158,13 @@ func init() {
 		"controllers",
 		[]string{"ks", "git", "oci", "helm", "external-secrets"},
 		"controllers to enable",
+	)
+
+	rootCmd.PersistentFlags().BoolVar(
+		&rootArgs.strictSubstitutions,
+		"strict-substitutions",
+		true,
+		"enable strict mode for post-build variable substitution (matches Flux feature gate StrictPostBuildSubstitutions)",
 	)
 
 	cobra.OnInitialize(func() {
@@ -273,6 +283,7 @@ func newManager(useLocal bool, enabledControllers []string) (*loader.Manager, er
 		logger.Debug().Msg("enabling kustomize controller")
 		controllers = append(controllers, kustomize.NewController(
 			logger.With().Str("controller", "kustomize").Logger(),
+			kustomize.Options{StrictSubstitutions: rootArgs.strictSubstitutions},
 		))
 	}
 	if slices.Contains(enabledControllers, "helm") {

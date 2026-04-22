@@ -39,11 +39,23 @@ func init() {
 var _ ctrl.Controller = new(Controller)
 
 type Controller struct {
-	logger zerolog.Logger
+	logger              zerolog.Logger
+	strictSubstitutions bool
 }
 
-func NewController(logger zerolog.Logger) *Controller {
-	return &Controller{logger: logger}
+type Options struct {
+	// StrictSubstitutions enables strict mode for post-build variable substitution.
+	// When true, envsubst will fail if a variable is referenced but not defined.
+	// Matches the Flux feature gate --feature-gates=StrictPostBuildSubstitutions=true.
+	// Defaults to true.
+	StrictSubstitutions bool
+}
+
+func NewController(logger zerolog.Logger, opts Options) *Controller {
+	return &Controller{
+		logger:              logger,
+		strictSubstitutions: opts.StrictSubstitutions,
+	}
 }
 
 func (r Controller) Kinds() []string {
@@ -105,7 +117,7 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 				clientSet,
 				*obj,
 				res,
-				kustomize.SubstituteWithStrict(true),
+				kustomize.SubstituteWithStrict(r.strictSubstitutions),
 			)
 			if err != nil {
 				return nil, fmt.Errorf(
@@ -116,7 +128,9 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 					err,
 				)
 			}
-			resources[i] = newRes
+			if newRes != nil {
+				resources[i] = newRes
+			}
 		}
 	}
 
