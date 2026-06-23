@@ -1,6 +1,6 @@
 module github.com/omnicate/flux-local-explorer
 
-go 1.25.0
+go 1.26.4
 
 require (
 	github.com/external-secrets/external-secrets v0.19.2
