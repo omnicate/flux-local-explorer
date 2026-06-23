@@ -17,6 +17,7 @@ jobs:
         with:
           token: ${{ github.token }}
           tag: ${{ github.ref_name }}
+          includeInvalidCommits: true
       - name: Setup Bazel
         uses: bazel-contrib/setup-bazel@0.14.0
         with:
