@@ -20,7 +20,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"sigs.k8s.io/kustomize/api/konfig"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resource"
 	kustypes "sigs.k8s.io/kustomize/api/types"
@@ -43,7 +42,7 @@ func LoadPath(
 ) {
 
 	// Kustomization:
-	if fs.Exists(filepath.Join(path, konfig.DefaultKustomizationFileName())) {
+	if hasKustomizationFile(fs, path) {
 		resMap, err := kustomizer.Run(fs, path)
 		if err != nil {
 			return nil, err
@@ -81,6 +80,15 @@ func LoadPath(
 		return nil, err
 	}
 	return LoadBytes(data)
+}
+
+func hasKustomizationFile(fs filesys.FileSystem, path string) bool {
+	for _, name := range []string{"kustomization.yaml", "kustomization.yml", "Kustomization"} {
+		if fs.Exists(filepath.Join(path, name)) {
+			return true
+		}
+	}
+	return false
 }
 
 func LoadBytes(data []byte) ([]*resource.Resource, error) {

@@ -16,7 +16,6 @@ go_library(
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_sigs_controller_runtime//pkg/client",
-        "@io_k8s_sigs_kustomize_api//konfig",
         "@io_k8s_sigs_kustomize_api//krusty",
         "@io_k8s_sigs_kustomize_api//resource",
         "@io_k8s_sigs_kustomize_api//types",
