@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "affected",
+    srcs = ["affected.go"],
+    importpath = "github.com/omnicate/flux-local-explorer/internal/affected",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//internal/controller",
+        "//internal/loader",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)
+
+go_test(
+    name = "affected_test",
+    srcs = ["affected_test.go"],
+    embed = [":affected"],
+)
