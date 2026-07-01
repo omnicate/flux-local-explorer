@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	extsecretv1b1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1beta1"
 	"github.com/rs/zerolog"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,10 +27,6 @@ import (
 
 	ctrl "github.com/omnicate/flux-local-explorer/internal/controller"
 )
-
-func init() {
-	_ = extsecretv1b1.AddToScheme(ctrl.Scheme)
-}
 
 var _ ctrl.Controller = new(Controller)
 
@@ -48,7 +43,7 @@ func (r Controller) Kinds() []string {
 }
 
 func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Result, error) {
-	var es extsecretv1b1.ExternalSecret
+	var es externalSecret
 	if err := req.Unmarshal(&es); err != nil {
 		return nil, err
 	}
@@ -93,4 +88,29 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 	return &ctrl.Result{Resources: []*ctrl.Resource{
 		ctrl.NewResource(res),
 	}}, nil
+}
+
+type externalSecret struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec              externalSecretSpec `json:"spec,omitempty"`
+}
+
+type externalSecretSpec struct {
+	Target externalSecretTarget `json:"target,omitempty"`
+	Data   []externalSecretData `json:"data,omitempty"`
+}
+
+type externalSecretTarget struct {
+	Name string `json:"name,omitempty"`
+}
+
+type externalSecretData struct {
+	SecretKey string                  `json:"secretKey,omitempty"`
+	RemoteRef externalSecretRemoteRef `json:"remoteRef,omitempty"`
+}
+
+type externalSecretRemoteRef struct {
+	Key      string `json:"key,omitempty"`
+	Property string `json:"property,omitempty"`
 }
