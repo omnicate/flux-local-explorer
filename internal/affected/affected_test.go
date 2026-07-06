@@ -104,6 +104,1034 @@ metadata:
 	)
 }
 
+func TestFindDoesNotTreatMissingSpecPathAsRepoRoot(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "snippets/patch.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: patch
+spec:
+  suspend: true
+`)
+	writeFile(t, root, "unrelated.txt", "unrelated\n")
+
+	targets, err := Find(Options{
+		RepoRoot: root,
+		Files:    []string{"unrelated.txt"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets)
+}
+
+func TestListIncludesEveryRenderedEntrypointTarget(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "flux-roots.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: stage-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./regions/eu/stage
+`)
+	writeFile(t, root, "kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - clusters/prod
+  - regions/eu/stage
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+namePrefix: prod-
+resources:
+  - ../../apps/demo/flux
+  - ../../apps/other/flux
+`)
+	writeFile(t, root, "regions/eu/stage/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+namePrefix: stage-
+resources:
+  - ../../../apps/demo/flux
+`)
+	writeFile(t, root, "apps/demo/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "apps/demo/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: shared-service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/demo/service
+`)
+	writeFile(t, root, "apps/other/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - worker.yaml
+`)
+	writeFile(t, root, "apps/other/flux/worker.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: worker
+  namespace: runtime
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/other/worker
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root, "clusters/prod")+"\tgitops\tprod-shared-service",
+		filepath.Join(root, "clusters/prod")+"\tgitops\tprod-worker",
+		filepath.Join(root, "regions/eu/stage")+"\tgitops\tstage-shared-service",
+	)
+}
+
+func TestListDefaultsRawNamespaceBeforeDetectingDuplicateRenderedNames(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../apps/demo/flux
+  - duplicate.yaml
+`)
+	writeFile(t, root, "apps/demo/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "apps/demo/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/demo/service
+`)
+	writeFile(t, root, "clusters/prod/duplicate.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+  namespace: apps
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/other/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root, "clusters/prod")+"\tapps\tservice",
+		filepath.Join(root, "clusters/prod")+"\tflux-system\tservice",
+	)
+}
+
+func TestListSkipsNonFluxOverlaysThatReferenceFluxManifests(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "flux-roots.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+namePrefix: prod-
+resources:
+  - ../../apps/demo/flux
+`)
+	writeFile(t, root, "tests/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: test
+namePrefix: test-
+resources:
+  - ../../apps/demo/flux
+`)
+	writeFile(t, root, "apps/demo/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "apps/demo/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/demo/service
+`)
+	writeFile(t, root, "apps/demo/service/deployment.yaml", `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root)+"\tflux-system\tprod-root",
+		filepath.Join(root, "clusters/prod")+"\tgitops\tprod-service",
+	)
+}
+
+func TestListUsesRenderedFluxEntrypointPathsForOwnership(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "bootstrap/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - root.yaml
+patches:
+  - path: path-patch.yaml
+`)
+	writeFile(t, root, "bootstrap/root.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+`)
+	writeFile(t, root, "bootstrap/path-patch.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+spec:
+  path: ./clusters/prod
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: prod
+resources:
+  - ../../apps/prod/flux
+`)
+	writeFile(t, root, "tests/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: test
+namePrefix: test-
+resources:
+  - ../../apps/prod/flux
+`)
+	writeFile(t, root, "apps/prod/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "apps/prod/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/prod/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root, "bootstrap")+"\tflux-system\tprod-root",
+		filepath.Join(root, "clusters/prod")+"\tprod\tservice",
+	)
+}
+
+func TestListPrefersManifestDirUnderFluxRootOverNonFluxOverlay(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "flux-roots.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+namePrefix: prod-
+resources:
+  - apps/demo/flux
+`)
+	writeFile(t, root, "tests/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: test
+namePrefix: test-
+resources:
+  - ../../clusters/prod/apps/demo/flux
+`)
+	writeFile(t, root, "clusters/prod/apps/demo/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: leaf
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "clusters/prod/apps/demo/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod/apps/demo/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root)+"\tflux-system\tprod-root",
+		filepath.Join(root, "clusters/prod")+"\tgitops\tprod-service",
+	)
+}
+
+func TestListPrefersFluxOwnedAncestorOverLeafComponent(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "flux-roots.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+namePrefix: prod-
+resources:
+  - apps/demo/flux
+`)
+	writeFile(t, root, "clusters/prod/apps/demo/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "clusters/prod/apps/demo/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod/apps/demo/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root)+"\tflux-system\tprod-root",
+		filepath.Join(root, "clusters/prod")+"\tgitops\tprod-service",
+	)
+}
+
+func TestListPreservesExternalFluxEntrypointsWhenFluxOwnedAncestorExists(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "flux-roots.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: stage-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/stage
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+namePrefix: prod-
+resources:
+  - apps/demo/flux
+`)
+	writeFile(t, root, "clusters/stage/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+namePrefix: stage-
+resources:
+  - ../prod/apps/demo/flux
+`)
+	writeFile(t, root, "clusters/prod/apps/demo/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "clusters/prod/apps/demo/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod/apps/demo/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root)+"\tflux-system\tprod-root",
+		filepath.Join(root)+"\tflux-system\tstage-root",
+		filepath.Join(root, "clusters/prod")+"\tgitops\tprod-service",
+		filepath.Join(root, "clusters/stage")+"\tgitops\tstage-service",
+	)
+}
+
+func TestListDoesNotTreatFluxRootDescendantsAsOwnedWithoutGraphReference(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "flux-roots.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: clusters-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters
+`)
+	writeFile(t, root, "clusters/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - prod
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+namePrefix: prod-
+resources:
+  - apps/demo/flux
+`)
+	writeFile(t, root, "clusters/test/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: test
+namePrefix: test-
+resources:
+  - ../prod/apps/demo/flux
+`)
+	writeFile(t, root, "clusters/prod/apps/demo/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "clusters/prod/apps/demo/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod/apps/demo/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root)+"\tflux-system\tclusters-root",
+		filepath.Join(root, "clusters/prod")+"\tgitops\tprod-service",
+	)
+}
+
+func TestListKeepsEntrypointWithoutInRepoBootstrapManifest(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+resources:
+  - ../../apps/demo/flux
+`)
+	writeFile(t, root, "apps/demo/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "apps/demo/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/demo/service
+`)
+	writeFile(t, root, "apps/demo/service/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+`)
+	writeFile(t, root, "apps/demo/service/deployment.yaml", `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root, "clusters/prod")+"\tgitops\tservice",
+	)
+}
+
+func TestListKeepsUndeclaredEntrypointWhenOtherFluxRootsExist(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "flux-roots.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: prod
+resources:
+  - ../../apps/prod/flux
+`)
+	writeFile(t, root, "apps/prod/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "apps/prod/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/prod/service
+`)
+	writeFile(t, root, "clusters/dev/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - ../../apps/dev/flux
+`)
+	writeFile(t, root, "apps/dev/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "apps/dev/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/dev/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root)+"\tflux-system\tprod-root",
+		filepath.Join(root, "clusters/dev")+"\tdev\tservice",
+		filepath.Join(root, "clusters/prod")+"\tprod\tservice",
+	)
+}
+
+func TestListSkipsFluxKustomizationsThatDoNotRender(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "flux-roots.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod
+`)
+	writeFile(t, root, "kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - clusters/prod
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "clusters/prod/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/service
+`)
+	writeFile(t, root, "clusters/prod/stale.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: stale
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/stale
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root, "clusters/prod")+"\tgitops\tservice",
+	)
+}
+
+func TestListSkipsFluxKustomizationsWithoutKustomizeReference(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "flux-roots.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "clusters/prod/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/service
+`)
+	writeFile(t, root, "orphans/stale.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: stale
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/stale
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root)+"\tflux-system\tprod-root",
+		filepath.Join(root, "clusters/prod")+"\tgitops\tservice",
+	)
+}
+
+func TestListIncludesStandaloneFluxManifestWithWorkloadSpecPath(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "controllers/app.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: app
+  namespace: apps
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/app
+`)
+	writeFile(t, root, "apps/app/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+`)
+	writeFile(t, root, "apps/app/deployment.yaml", `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root, "controllers")+"\tapps\tapp",
+	)
+}
+
+func TestListIncludesStandaloneBootstrapRootThatRendersFluxChildren(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "controllers/root.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prod-root
+  namespace: flux-system
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./clusters/prod
+`)
+	writeFile(t, root, "clusters/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "clusters/prod/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root, "clusters/prod")+"\tgitops\tservice",
+		filepath.Join(root, "controllers")+"\tflux-system\tprod-root",
+	)
+}
+
+func TestListIgnoresFluxShapedPatchesWithoutSpecPath(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "patches/suspend.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: patch
+spec:
+  suspend: true
+`)
+	writeFile(t, root, "orphans/stale.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: stale
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/stale
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets)
+}
+
+func TestListIncludesFluxPathEntrypointWithoutKustomizationFile(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "controllers/namespace.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-demo
+  namespace: flux-system
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/demo/flux
+`)
+	writeFile(t, root, "apps/demo/flux/namespace/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+  namespace: apps
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/demo/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root, "apps/demo/flux/namespace")+"\tapps\tservice",
+		filepath.Join(root, "controllers")+"\tflux-system\tflux-demo",
+	)
+}
+
+func TestListPreservesRootFluxPathEntrypoint(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "root.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: root
+  namespace: flux-system
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./
+`)
+	writeFile(t, root, "apps/demo/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+  namespace: apps
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/demo/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root, "apps/demo/flux")+"\tapps\tservice",
+		filepath.Join(root)+"\tflux-system\troot",
+	)
+}
+
+func TestListDoesNotLetRootFluxPathOwnExternalOverlays(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "root.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: root
+  namespace: flux-system
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./
+`)
+	writeFile(t, root, "kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gitops
+namePrefix: root-
+resources:
+  - apps/demo/flux
+`)
+	writeFile(t, root, "tests/prod/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: test
+namePrefix: test-
+resources:
+  - ../../apps/demo/flux
+`)
+	writeFile(t, root, "apps/demo/flux/kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+`)
+	writeFile(t, root, "apps/demo/flux/service.yaml", `
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: service
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: app-source
+  path: ./apps/demo/service
+`)
+
+	targets, err := List(Options{RepoRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requireTargets(t, targets,
+		filepath.Join(root)+"\tgitops\troot-service",
+	)
+}
+
 func TestFindUsesNearestAncestorEntrypoint(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "kustomization.yaml", `

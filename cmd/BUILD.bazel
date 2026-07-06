@@ -10,6 +10,7 @@ go_library(
         "get_git_repo.go",
         "get_kustomization.go",
         "get_oci_repo.go",
+        "list.go",
         "root.go",
         "stat.go",
         "version.go",

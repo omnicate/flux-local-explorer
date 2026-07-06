@@ -1,6 +1,7 @@
 package affected
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -62,6 +63,8 @@ type resourceDoc struct {
 }
 
 type kustomizeFile struct {
+	Namespace             string                  `yaml:"namespace"`
+	NamePrefix            string                  `yaml:"namePrefix"`
 	Resources             []string                `yaml:"resources"`
 	Bases                 []string                `yaml:"bases"`
 	Components            []string                `yaml:"components"`
@@ -95,6 +98,8 @@ type rawKustomization struct {
 	File string
 	Doc  resourceDoc
 }
+
+var errRenderedKustomizationNotFound = errors.New("rendered kustomization not found")
 
 func Find(opts Options) ([]Target, error) {
 	repoRoot, err := filepath.Abs(opts.RepoRoot)
@@ -156,6 +161,49 @@ func Find(opts Options) ([]Target, error) {
 		return a < b
 	})
 	return out, nil
+}
+
+func List(opts Options) ([]Target, error) {
+	repoRoot, err := filepath.Abs(opts.RepoRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := loadRawKustomizations(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	kustomizations, err := findKustomizationFiles(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	fluxEntrypoints := fluxEntrypointDirs(repoRoot, raw, kustomizations)
+
+	seen := map[string]Target{}
+	for _, ks := range raw {
+		entrypoints, err := listedEntrypointDirsFromFiles(repoRoot, ks.File, ks.Doc, kustomizations, fluxEntrypoints)
+		if err != nil {
+			return nil, err
+		}
+		for _, entrypoint := range entrypoints {
+			rendered, err := renderedKustomization(repoRoot, entrypoint, ks.Doc)
+			if err != nil {
+				if errors.Is(err, errRenderedKustomizationNotFound) {
+					continue
+				}
+				return nil, err
+			}
+			target := Target{
+				EntryPoint: filepath.Join(repoRoot, filepath.FromSlash(entrypoint)),
+				Namespace:  defaultNamespace(rendered.Metadata.Namespace),
+				Name:       rendered.Metadata.Name,
+			}
+			key := target.EntryPoint + "\t" + target.Namespace + "\t" + target.Name
+			seen[key] = target
+		}
+	}
+
+	return sortedTargets(seen), nil
 }
 
 func normalizeInputPath(repoRoot, file string) (string, error) {
@@ -229,10 +277,196 @@ func entrypointDirs(repoRoot, manifest string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return entrypointDirsFromFiles(repoRoot, manifest, kustomizations)
+}
+
+func entrypointDirsFromFiles(repoRoot, manifest string, kustomizations []string) ([]string, error) {
+	entrypoints, referenced, err := referencedEntrypointDirsFromFiles(repoRoot, manifest, kustomizations)
+	if err != nil {
+		return nil, err
+	}
+	if referenced {
+		return entrypoints, nil
+	}
+
 	manifestDir := filepath.ToSlash(filepath.Dir(manifest))
 	if manifestDir == "." {
 		manifestDir = ""
 	}
+	return []string{manifestDir}, nil
+}
+
+func listedEntrypointDirsFromFiles(repoRoot, manifest string, doc resourceDoc, kustomizations []string, fluxEntrypoints map[string]bool) ([]string, error) {
+	entrypoints, ancestors, referenced, err := listedEntrypointCandidatesFromFiles(repoRoot, manifest, kustomizations)
+	if err != nil {
+		return nil, err
+	}
+	if referenced {
+		if ancestor, ok := preferredFluxOwnedAncestor(repoRoot, ancestors, fluxEntrypoints); ok {
+			out := []string{ancestor}
+			out = append(out, fluxOwnedEntrypointDirs(repoRoot, externalEntrypointDirs(manifest, entrypoints), fluxEntrypoints)...)
+			return out, nil
+		}
+		owned := fluxOwnedEntrypointDirs(repoRoot, entrypoints, fluxEntrypoints)
+		if len(owned) > 0 {
+			return owned, nil
+		}
+		if len(fluxEntrypoints) == 0 {
+			return entrypoints, nil
+		}
+		manifestDir := filepath.ToSlash(filepath.Dir(manifest))
+		if manifestDir == "." {
+			manifestDir = ""
+		}
+		if !fluxEntrypointOwnsFile(repoRoot, manifest, fluxEntrypoints) {
+			return entrypoints, nil
+		}
+		if len(ancestors) > 0 {
+			return []string{deepestEntrypointAncestor(ancestors)}, nil
+		}
+		if fluxEntrypointOwnsDir(repoRoot, manifestDir, fluxEntrypoints) || (fluxEntrypoints[""] && len(ancestors) == 0) {
+			return []string{manifestDir}, nil
+		}
+		return nil, nil
+	}
+	manifestDir := filepath.ToSlash(filepath.Dir(manifest))
+	if manifestDir == "." {
+		manifestDir = ""
+	}
+	if !fluxEntrypointOwnsDir(repoRoot, manifestDir, fluxEntrypoints) && !fluxEntrypoints[""] {
+		if !standaloneFluxManifestRendersSpecPath(repoRoot, doc) {
+			return nil, nil
+		}
+	}
+	entrypoints = []string{manifestDir}
+	return entrypoints, nil
+}
+
+func standaloneFluxManifestRendersSpecPath(repoRoot string, doc resourceDoc) bool {
+	if doc.Spec.Path == "" {
+		return false
+	}
+	specPath := normalizeSpecPath(doc.Spec.Path)
+	path := filepath.Join(repoRoot, filepath.FromSlash(specPath))
+	if _, err := os.Stat(path); err != nil {
+		return false
+	}
+	resources, err := loader.LoadPath(filesys.MakeFsOnDisk(), path)
+	if err != nil || len(resources) == 0 {
+		return false
+	}
+	return true
+}
+
+func externalEntrypointDirs(manifest string, entrypoints []string) []string {
+	out := make([]string, 0, len(entrypoints))
+	for _, entrypoint := range entrypoints {
+		if entrypoint == "" || hasPathPrefix(manifest, entrypoint) {
+			continue
+		}
+		out = append(out, entrypoint)
+	}
+	return out
+}
+
+func listedEntrypointCandidatesFromFiles(repoRoot, manifest string, kustomizations []string) ([]string, []string, bool, error) {
+	var external []string
+	var ancestors []string
+
+	for _, file := range kustomizations {
+		dir := filepath.ToSlash(filepath.Dir(file))
+		if dir == "." {
+			dir = ""
+		}
+		ok, err := kustomizationReferencesInput(repoRoot, dir, manifest, map[string]bool{}, true)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		if !ok {
+			continue
+		}
+		if dir == "" || hasPathPrefix(manifest, dir) {
+			ancestors = append(ancestors, dir)
+			continue
+		}
+		external = append(external, dir)
+	}
+	sort.Slice(ancestors, func(i, j int) bool {
+		return pathDepth(ancestors[i]) < pathDepth(ancestors[j])
+	})
+	if len(external) > 0 {
+		sort.Strings(external)
+		return external, ancestors, true, nil
+	}
+	if len(ancestors) > 0 {
+		return []string{ancestors[len(ancestors)-1]}, ancestors, true, nil
+	}
+	return nil, nil, false, nil
+}
+
+func deepestEntrypointAncestor(ancestors []string) string {
+	deepest := ancestors[0]
+	for _, ancestor := range ancestors[1:] {
+		if pathDepth(ancestor) > pathDepth(deepest) {
+			deepest = ancestor
+		}
+	}
+	return deepest
+}
+
+func preferredFluxOwnedAncestor(repoRoot string, ancestors []string, fluxEntrypoints map[string]bool) (string, bool) {
+	for entrypoint := range fluxEntrypoints {
+		if _, hasKustomization := findKustomizationFile(repoRoot, entrypoint); hasKustomization {
+			for _, ancestor := range ancestors {
+				if ancestor == entrypoint && kustomizationHasLocalTransform(repoRoot, entrypoint) {
+					return ancestor, true
+				}
+			}
+			for i := len(ancestors) - 1; i >= 0; i-- {
+				ancestor := ancestors[i]
+				if ancestor != entrypoint && fluxEntrypointOwnsDir(repoRoot, ancestor, map[string]bool{entrypoint: true}) && kustomizationHasLocalTransform(repoRoot, ancestor) {
+					return ancestor, true
+				}
+			}
+			for _, ancestor := range ancestors {
+				if ancestor == entrypoint {
+					return ancestor, true
+				}
+			}
+			continue
+		}
+		for i := len(ancestors) - 1; i >= 0; i-- {
+			if fluxEntrypointOwnsDir(repoRoot, ancestors[i], map[string]bool{entrypoint: true}) {
+				return ancestors[i], true
+			}
+		}
+	}
+	return "", false
+}
+
+func kustomizationHasLocalTransform(repoRoot, dir string) bool {
+	kfile, ok := findKustomizationFile(repoRoot, dir)
+	if !ok {
+		return false
+	}
+	k, ok, err := loadKustomizeFile(filepath.Join(repoRoot, filepath.FromSlash(kfile)))
+	if err != nil || !ok {
+		return false
+	}
+	return k.Namespace != "" || k.NamePrefix != ""
+}
+
+func fluxOwnedEntrypointDirs(repoRoot string, entrypoints []string, fluxEntrypoints map[string]bool) []string {
+	out := make([]string, 0, len(entrypoints))
+	for _, entrypoint := range entrypoints {
+		if fluxEntrypointOwnsDir(repoRoot, entrypoint, fluxEntrypoints) {
+			out = append(out, entrypoint)
+		}
+	}
+	return out
+}
+
+func referencedEntrypointDirsFromFiles(repoRoot, manifest string, kustomizations []string) ([]string, bool, error) {
 	var external []string
 	ancestor := ""
 	ancestorDepth := -1
@@ -244,7 +478,7 @@ func entrypointDirs(repoRoot, manifest string) ([]string, error) {
 		}
 		ok, err := kustomizationReferencesInput(repoRoot, dir, manifest, map[string]bool{}, true)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if !ok {
 			continue
@@ -261,12 +495,121 @@ func entrypointDirs(repoRoot, manifest string) ([]string, error) {
 	}
 	if len(external) > 0 {
 		sort.Strings(external)
-		return external, nil
+		return external, true, nil
 	}
 	if ancestorDepth >= 0 {
-		return []string{ancestor}, nil
+		return []string{ancestor}, true, nil
 	}
-	return []string{manifestDir}, nil
+	return nil, false, nil
+}
+
+func fluxEntrypointDirs(repoRoot string, raw []rawKustomization, kustomizations []string) map[string]bool {
+	out := map[string]bool{}
+	for _, ks := range raw {
+		if ks.Doc.Spec.Path == "" {
+			continue
+		}
+		specPath := normalizeSpecPath(ks.Doc.Spec.Path)
+		if !fluxEntrypointPathExists(repoRoot, specPath, raw) {
+			continue
+		}
+		out[specPath] = true
+	}
+	for _, kfile := range kustomizations {
+		dir := filepath.ToSlash(filepath.Dir(kfile))
+		if dir == "." {
+			dir = ""
+		}
+		resources, err := loader.LoadPath(filesys.MakeFsOnDisk(), filepath.Join(repoRoot, filepath.FromSlash(dir)))
+		if err != nil {
+			continue
+		}
+		for _, res := range resources {
+			var doc resourceDoc
+			if err := controller.NewResource(res).Unmarshal(&doc); err != nil || !isFluxKustomization(doc) || doc.Spec.Path == "" {
+				continue
+			}
+			specPath := normalizeSpecPath(doc.Spec.Path)
+			if !fluxEntrypointPathExists(repoRoot, specPath, raw) {
+				continue
+			}
+			out[specPath] = true
+		}
+	}
+	return out
+}
+
+func fluxEntrypointPathExists(repoRoot, specPath string, raw []rawKustomization) bool {
+	resources, err := loader.LoadPath(filesys.MakeFsOnDisk(), filepath.Join(repoRoot, filepath.FromSlash(specPath)))
+	if err == nil {
+		for _, res := range resources {
+			var doc resourceDoc
+			if err := controller.NewResource(res).Unmarshal(&doc); err == nil && isFluxKustomization(doc) {
+				return true
+			}
+		}
+	}
+	for _, ks := range raw {
+		if pathMatches(ks.File, specPath) {
+			return true
+		}
+	}
+	return false
+}
+
+func fluxEntrypointOwnsDir(repoRoot, dir string, fluxEntrypoints map[string]bool) bool {
+	for entrypoint := range fluxEntrypoints {
+		if entrypoint == "" {
+			if dir == "" {
+				return true
+			}
+			continue
+		}
+		if dir == entrypoint {
+			return true
+		}
+		if _, hasKustomization := findKustomizationFile(repoRoot, entrypoint); !hasKustomization && hasPathPrefix(dir, entrypoint) {
+			return true
+		}
+		ok, err := kustomizationReferencesInput(repoRoot, entrypoint, dir, map[string]bool{}, true)
+		if err == nil && ok {
+			return true
+		}
+	}
+	return false
+}
+
+func fluxEntrypointOwnsFile(repoRoot, file string, fluxEntrypoints map[string]bool) bool {
+	for entrypoint := range fluxEntrypoints {
+		if entrypoint == "" {
+			ok, err := kustomizationReferencesInput(repoRoot, entrypoint, file, map[string]bool{}, true)
+			if err == nil && ok {
+				return true
+			}
+			continue
+		}
+		if pathMatches(file, entrypoint) {
+			return true
+		}
+		ok, err := kustomizationReferencesInput(repoRoot, entrypoint, file, map[string]bool{}, true)
+		if err == nil && ok {
+			return true
+		}
+	}
+	return false
+}
+
+func sortedTargets(seen map[string]Target) []Target {
+	out := make([]Target, 0, len(seen))
+	for _, target := range seen {
+		out = append(out, target)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a := out[i].EntryPoint + "\t" + out[i].Namespace + "\t" + out[i].Name
+		b := out[j].EntryPoint + "\t" + out[j].Namespace + "\t" + out[j].Name
+		return a < b
+	})
+	return out
 }
 
 func findKustomizationFiles(repoRoot string) ([]string, error) {
@@ -294,16 +637,20 @@ func findKustomizationFiles(repoRoot string) ([]string, error) {
 }
 
 func affectedByFile(repoRoot, changed, entrypoint string, raw rawKustomization, rendered resourceDoc) (bool, string, error) {
-	specPath := normalizeSpecPath(rendered.Spec.Path)
-	if pathMatches(changed, specPath) {
-		return true, "spec.path", nil
-	}
-	ok, err := kustomizationReferencesInput(repoRoot, specPath, changed, map[string]bool{}, true)
-	if err != nil {
-		return false, "", err
-	}
-	if ok {
-		return true, "spec.path-input", nil
+	var ok bool
+	var err error
+	if rendered.Spec.Path != "" {
+		specPath := normalizeSpecPath(rendered.Spec.Path)
+		if pathMatches(changed, specPath) {
+			return true, "spec.path", nil
+		}
+		ok, err = kustomizationReferencesInput(repoRoot, specPath, changed, map[string]bool{}, true)
+		if err != nil {
+			return false, "", err
+		}
+		if ok {
+			return true, "spec.path-input", nil
+		}
 	}
 	if pathMatches(changed, raw.File) {
 		return true, "manifest", nil
@@ -353,16 +700,14 @@ func renderedKustomization(repoRoot, entrypoint string, raw resourceDoc) (resour
 		}
 		matches = append(matches, doc)
 	}
-	if raw.Metadata.Namespace != "" {
-		namespaceMatches := matches[:0]
-		for _, match := range matches {
-			if match.Metadata.Namespace == raw.Metadata.Namespace {
-				namespaceMatches = append(namespaceMatches, match)
-			}
+	namespaceMatches := matches[:0]
+	for _, match := range matches {
+		if defaultNamespace(match.Metadata.Namespace) == defaultNamespace(raw.Metadata.Namespace) {
+			namespaceMatches = append(namespaceMatches, match)
 		}
-		if len(namespaceMatches) > 0 {
-			matches = namespaceMatches
-		}
+	}
+	if len(namespaceMatches) > 0 {
+		matches = namespaceMatches
 	}
 	if len(matches) > 1 {
 		sort.Slice(matches, func(i, j int) bool {
@@ -373,6 +718,9 @@ func renderedKustomization(repoRoot, entrypoint string, raw resourceDoc) (resour
 		}
 	}
 	if len(matches) != 1 {
+		if len(matches) == 0 {
+			return resourceDoc{}, errRenderedKustomizationNotFound
+		}
 		return resourceDoc{}, fmt.Errorf("rendered kustomization match count = %d", len(matches))
 	}
 	return matches[0], nil
@@ -731,10 +1079,11 @@ func normalizeSpecPath(path string) string {
 	path = strings.TrimPrefix(path, "./")
 	path = strings.TrimLeft(path, "/")
 	path = strings.TrimSuffix(path, "/")
+	path = filepath.ToSlash(filepath.Clean(path))
 	if path == "." {
 		return ""
 	}
-	return filepath.ToSlash(filepath.Clean(path))
+	return path
 }
 
 func pathMatches(input, match string) bool {

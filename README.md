@@ -144,6 +144,17 @@ cert-manager  	infra       git: flux-system/my-flux-repo	4
 [..]
 ```
 
+List all Flux Kustomization render targets as TSV:
+```shell
+$ flx -C path/to/repo list ks -o tsv
+path/to/repo/clusters/prod	gitops	prod-demo
+```
+
+This inventory form is intended for automation that needs every render target
+once, such as repository-wide validation. It emits the same
+`entrypoint<TAB>namespace<TAB>name` contract as `flx affected -o tsv`, without
+deriving targets from a changed-file list.
+
 List all Kustomizations in namespace infra:
 ```shell
 $ flx get ks -n infra
