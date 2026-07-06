@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/fluxcd/flux2/v2/pkg/printers"
 	"github.com/spf13/cobra"
@@ -33,6 +34,7 @@ type GetFlags struct {
 	allNamespaces bool
 	format        string
 	name          string
+	setEnv        []string
 }
 
 var (
@@ -144,4 +146,42 @@ func errOrEmpty(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func parseSetEnvVars(values []string, lookupEnv func(string) (string, bool)) (map[string]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	out := map[string]string{}
+	for _, value := range values {
+		name, setValue, hasValue := strings.Cut(value, "=")
+		if name == "" {
+			return nil, fmt.Errorf("--set-env %q has empty variable name", value)
+		}
+		if !validSubstitutionVariableName(name) {
+			return nil, fmt.Errorf("--set-env %q has invalid variable name", name)
+		}
+		if !hasValue {
+			var ok bool
+			setValue, ok = lookupEnv(name)
+			if !ok {
+				return nil, fmt.Errorf("--set-env %s references unset environment variable", name)
+			}
+		}
+		out[name] = setValue
+	}
+	return out, nil
+}
+
+func validSubstitutionVariableName(name string) bool {
+	for i, r := range name {
+		if r == '_' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' {
+			continue
+		}
+		if i > 0 && r >= '0' && r <= '9' {
+			continue
+		}
+		return false
+	}
+	return name != ""
 }
