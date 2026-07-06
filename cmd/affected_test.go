@@ -35,3 +35,19 @@ func TestPrintAffectedTargets(t *testing.T) {
 		t.Fatalf("err = %v, want unknown output format", err)
 	}
 }
+
+func TestPrintListTargetsUsesAffectedTargetContract(t *testing.T) {
+	targets := []affected.Target{{
+		EntryPoint: "/repo/clusters/prod",
+		Namespace:  "gitops",
+		Name:       "prod-service",
+	}}
+
+	var buf bytes.Buffer
+	if err := printListTargets(&buf, targets, "tsv"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := buf.String(), "/repo/clusters/prod\tgitops\tprod-service\n"; got != want {
+		t.Fatalf("tsv = %q, want %q", got, want)
+	}
+}
