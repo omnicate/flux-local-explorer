@@ -26,6 +26,7 @@ import (
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/kustomize"
 	"github.com/rs/zerolog"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	ctrl "github.com/omnicate/flux-local-explorer/internal/controller"
@@ -40,10 +41,19 @@ var _ ctrl.Controller = new(Controller)
 
 type Controller struct {
 	logger zerolog.Logger
+	opts   Options
 }
 
-func NewController(logger zerolog.Logger) *Controller {
-	return &Controller{logger: logger}
+type Options struct {
+	Substitute map[string]string
+}
+
+func NewController(logger zerolog.Logger, opts ...Options) *Controller {
+	var options Options
+	if len(opts) > 0 {
+		options = opts[0]
+	}
+	return &Controller{logger: logger, opts: options}
 }
 
 func (r Controller) Kinds() []string {
@@ -93,11 +103,12 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 	targetNamespace := ctrl.Any(ks.Spec.TargetNamespace, ks.Namespace)
 
 	// Variable substitution:
-	if pb := ks.Spec.PostBuild; pb != nil && (pb.SubstituteFrom != nil || pb.Substitute != nil) {
+	if pb := ks.Spec.PostBuild; len(r.opts.Substitute) > 0 || pb != nil && (pb.SubstituteFrom != nil || pb.Substitute != nil) {
 		obj, err := req.Unstructured()
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal Kustomization: %v", err)
 		}
+		addSubstituteVars(obj, r.opts.Substitute)
 		clientSet := ctx.ClientSet()
 		for i, res := range resources {
 			newRes, err := kustomize.SubstituteVariables(
@@ -115,6 +126,9 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 					res.GetName(),
 					err,
 				)
+			}
+			if newRes == nil {
+				continue
 			}
 			resources[i] = newRes
 		}
@@ -134,6 +148,20 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 	// TODO: add load functions to directly use Resource.
 	//  Only the KS controller should need to load resources. Ever.
 	return &ctrl.Result{Resources: ctrl.NewResources(resources)}, nil
+}
+
+func addSubstituteVars(obj *unstructured.Unstructured, values map[string]string) {
+	if len(values) == 0 {
+		return
+	}
+	substitute, ok, err := unstructured.NestedStringMap(obj.Object, "spec", "postBuild", "substitute")
+	if err != nil || !ok {
+		substitute = map[string]string{}
+	}
+	for key, value := range values {
+		substitute[key] = value
+	}
+	_ = unstructured.SetNestedStringMap(obj.Object, substitute, "spec", "postBuild", "substitute")
 }
 
 func normalizeRepoPath(path string) string {

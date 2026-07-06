@@ -39,7 +39,15 @@ var getKustomizationCmd = &cobra.Command{
 		if len(args) > 0 {
 			getArgs.name = args[0]
 		}
-		mgr, err := newManager(true, commandControllers(cmd, []string{"ks", "git", "oci"}))
+		substitute, err := parseSetEnvVars(getArgs.setEnv, os.LookupEnv)
+		if err != nil {
+			return err
+		}
+		mgr, err := newManager(
+			true,
+			commandControllers(cmd, []string{"ks", "git", "oci"}),
+			ManagerOptions{KustomizeSubstitute: substitute},
+		)
 		if err != nil {
 			return err
 		}
@@ -65,6 +73,12 @@ var getKustomizationCmd = &cobra.Command{
 }
 
 func init() {
+	getKustomizationCmd.Flags().StringArrayVar(
+		&getArgs.setEnv,
+		"set-env",
+		nil,
+		"set a post-build substitution variable as NAME=value, or import NAME from the environment",
+	)
 	getCmd.AddCommand(getKustomizationCmd)
 }
 

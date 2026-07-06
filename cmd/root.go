@@ -67,6 +67,10 @@ var (
 	rootArgs RootFlags
 )
 
+type ManagerOptions struct {
+	KustomizeSubstitute map[string]string
+}
+
 var rootCmd = &cobra.Command{
 	Use:          "flx",
 	Short:        "Offline Flux companion.",
@@ -176,7 +180,12 @@ func commandControllers(cmd *cobra.Command, defaults []string) []string {
 	return slices.Clone(defaults)
 }
 
-func newManager(useLocal bool, enabledControllers []string) (*loader.Manager, error) {
+func newManager(useLocal bool, enabledControllers []string, opts ...ManagerOptions) (*loader.Manager, error) {
+	var options ManagerOptions
+	if len(opts) > 0 {
+		options = opts[0]
+	}
+
 	// Ensure deps in path:
 	for _, bin := range []string{"git", "helm"} {
 		if _, err := exec.LookPath(bin); err != nil {
@@ -273,6 +282,9 @@ func newManager(useLocal bool, enabledControllers []string) (*loader.Manager, er
 		logger.Debug().Msg("enabling kustomize controller")
 		controllers = append(controllers, kustomize.NewController(
 			logger.With().Str("controller", "kustomize").Logger(),
+			kustomize.Options{
+				Substitute: options.KustomizeSubstitute,
+			},
 		))
 	}
 	if slices.Contains(enabledControllers, "helm") {

@@ -162,6 +162,46 @@ func TestErrOrEmpty(t *testing.T) {
 	}
 }
 
+func TestParseSetEnvVars(t *testing.T) {
+	lookup := func(name string) (string, bool) {
+		switch name {
+		case "IMPORTED":
+			return "from-env", true
+		case "EMPTY":
+			return "", true
+		default:
+			return "", false
+		}
+	}
+
+	got, err := parseSetEnvVars([]string{"LITERAL=value", "TOKEN=abc=def", "IMPORTED", "EMPTY", "OVERRIDE=old", "OVERRIDE=new"}, lookup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"LITERAL":  "value",
+		"TOKEN":    "abc=def",
+		"IMPORTED": "from-env",
+		"EMPTY":    "",
+		"OVERRIDE": "new",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("parseSetEnvVars() = %v, want %v", got, want)
+	}
+	for key, wantValue := range want {
+		if got[key] != wantValue {
+			t.Fatalf("parseSetEnvVars()[%q] = %q, want %q", key, got[key], wantValue)
+		}
+	}
+}
+
+func TestParseSetEnvVarsRejectsUnsetImport(t *testing.T) {
+	_, err := parseSetEnvVars([]string{"MISSING"}, func(string) (string, bool) { return "", false })
+	if err == nil || !strings.Contains(err.Error(), "MISSING") {
+		t.Fatalf("err = %v, want missing env var", err)
+	}
+}
+
 func TestFormatHelpersAndRows(t *testing.T) {
 	oldArgs := getArgs
 	t.Cleanup(func() { getArgs = oldArgs })

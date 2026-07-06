@@ -190,6 +190,14 @@ kind: Deployment
 [..]
 ```
 
+Pass post-build substitution variables explicitly with `--set-env`. Use
+`NAME=value` to set a literal value, or `NAME` to import `NAME` from the caller's
+environment. Imported variables must be set.
+
+```shell
+$ flx get ks -n infra -o kustomize --set-env CLUSTER=prod --set-env REGION
+```
+
 If the selected Kustomization has reconciliation errors, `-o kustomize` prints
 the rendered resources collected so far and exits non-zero with a summary of the
 errors, including the failing rendered resource when available.
