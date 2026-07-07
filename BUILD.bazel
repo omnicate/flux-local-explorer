@@ -5,6 +5,7 @@ test_suite(
     name = "flx_tests",
     tests = [
         "//cmd:cmd_test",
+        "//internal/controller/kustomize:kustomize_test",
         "//internal/fs:fs_test",
         "//internal/loader:loader_test",
     ],

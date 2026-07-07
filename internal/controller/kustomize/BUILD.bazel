@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "kustomize",
@@ -12,6 +12,20 @@ go_library(
         "@com_github_fluxcd_pkg_kustomize//:kustomize",
         "@com_github_rs_zerolog//:zerolog",
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_sigs_kustomize_kyaml//filesys",
+    ],
+)
+
+go_test(
+    name = "kustomize_test",
+    srcs = ["controller_test.go"],
+    embed = [":kustomize"],
+    deps = [
+        "//internal/controller",
+        "//internal/fs",
+        "//internal/loader",
+        "@com_github_rs_zerolog//:zerolog",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
         "@io_k8s_sigs_kustomize_kyaml//filesys",
     ],
 )
