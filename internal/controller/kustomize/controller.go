@@ -103,7 +103,7 @@ func (r Controller) Reconcile(ctx ctrl.Context, req *ctrl.Resource) (*ctrl.Resul
 	targetNamespace := ctrl.Any(ks.Spec.TargetNamespace, ks.Namespace)
 
 	// Variable substitution:
-	if pb := ks.Spec.PostBuild; len(r.opts.Substitute) > 0 || pb != nil && (pb.SubstituteFrom != nil || pb.Substitute != nil) {
+	if pb := ks.Spec.PostBuild; pb != nil && (len(r.opts.Substitute) > 0 || pb.SubstituteFrom != nil || pb.Substitute != nil) {
 		obj, err := req.Unstructured()
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal Kustomization: %v", err)

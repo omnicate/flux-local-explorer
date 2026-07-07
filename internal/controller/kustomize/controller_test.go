@@ -222,6 +222,73 @@ spec:
 	}
 }
 
+func TestReconcileDoesNotSubstituteWithoutPostBuild(t *testing.T) {
+	tmpDir := t.TempDir()
+	repoDir := filepath.Join(tmpDir, "repo")
+	appDir := filepath.Join(repoDir, "workloads", "demo", "dashboards")
+	if err := os.MkdirAll(appDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appDir, "kustomization.yaml"), []byte(`
+resources:
+  - dashboard.yaml
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appDir, "dashboard.yaml"), []byte(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard
+  namespace: ns
+data:
+  datasource: ${DS_PROMETHEUS_HI_RES}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resources, err := loader.LoadBytes([]byte(`
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: dashboards
+  namespace: ns
+spec:
+  path: ./workloads/demo/dashboards
+  sourceRef:
+    kind: GitRepository
+    name: repo
+    namespace: flux-system
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repoFS := fluxfs.KrustyFileSystem(fluxfs.Prefix(filesys.MakeFsOnDisk(), repoDir))
+	ctx := stubContext{
+		attachments: map[string]any{
+			"GitRepository/flux-system/repo": repoFS,
+		},
+		client: loader.NewClientSet(ctrl.Scheme, &loader.ResourceNode{}),
+	}
+
+	result, err := NewController(zerolog.Nop(), Options{
+		Substitute: map[string]string{
+			"DS_PROMETHEUS_HI_RES": "prometheus-hi-res",
+		},
+	}).Reconcile(ctx, ctrl.NewResource(resources[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Resources) != 1 {
+		t.Fatalf("len(result.Resources) = %d, want 1", len(result.Resources))
+	}
+	got := result.Resources[0].MustYaml()
+	if !strings.Contains(got, "datasource: ${DS_PROMETHEUS_HI_RES}") {
+		t.Fatalf("rendered = %q, want original unsubstituted datasource", got)
+	}
+}
+
 func TestReconcileLeavesDisabledResourcesWhenForcingSubstitution(t *testing.T) {
 	tmpDir := t.TempDir()
 	repoDir := filepath.Join(tmpDir, "repo")
@@ -257,6 +324,9 @@ metadata:
   namespace: ns
 spec:
   path: ./workloads/demo/app
+  postBuild:
+    substitute:
+      cluster: demo
   sourceRef:
     kind: GitRepository
     name: repo
